@@ -1,6 +1,6 @@
 # Character builder: design review for #163
 
-This is the pre-implementation review requested by [#163](https://github.com/CapeKid/SpireLegacy/issues/163). It proposes a reusable toolkit; it does not claim that the toolkit or generated character exists. The proposed `CapeKid/Sts2CharacterBuilder` repository did not resolve through authenticated GitHub lookup on October 16, 2026. This change creates neither that repository nor a new Workshop item.
+This review was originally requested in Spire Legacy #163 and preserved from branch commit `60322dafc054f97d2c5c534dce3552f90fad4757`. The work and issue now live separately in [Sts2CharacterBuilder #1](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1). The repository contains the imported reference implementation and this design review; the generic toolkit has not been implemented yet.
 
 The remaining #146/#176/#177 balance work requires experienced human decisions and progression observations. Repeating the existing automated campaigns cannot supply those observations. #163 is the independently actionable engineering project among the remaining issues.
 
@@ -128,7 +128,7 @@ These are sequential milestones of one project, not a request to create a long s
 | 4. Verification and balance | Generic structural/mutation/native fixtures, effect extension contract, comparator reports and capped playtest protocol. Report unsupported bespoke effects/devices plainly. |
 | 5. Publishing and clean-room trial | Official uploader integration, private first upload, existing-item update, staged-to-downloaded hash verification, notices and setup instructions. A fresh recursive clone can create and test a second distinct character without hidden local tools; only then claim the builder is usable. |
 
-Spire Legacy remains the reference implementation during extraction. It should not immediately depend on a half-extracted toolkit. Consider adopting the pinned toolkit back into this mod only after the separate generated fixtures work and save/branch compatibility is demonstrated. No change to its live 1.0.32 Workshop content is part of #163's design review.
+Spire Legacy remains the reference implementation during extraction. It should not immediately depend on a half-extracted toolkit. Keep builder implementation and its follow-up changes in this repository, separate from Spire Legacy development. No change to its live 1.0.32 Workshop content is part of #163's design review.
 
 ## Upstream starting points and remaining choices
 
