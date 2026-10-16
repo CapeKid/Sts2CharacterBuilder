@@ -1,0 +1,22 @@
+name: Character builder
+on:
+  push:
+    branches: [main]
+    paths: ['builder/**', 'scripts/character-builder.py', '.github/workflows/character-builder.yml']
+  pull_request:
+    paths: ['builder/**', 'scripts/character-builder.py', '.github/workflows/character-builder.yml']
+permissions:
+  contents: read
+jobs:
+  portable:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s builder/tests -v
