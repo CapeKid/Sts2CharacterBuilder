@@ -191,8 +191,9 @@ def validate(toolkit, root):
 
 
 def input_hash(root):
+    root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
     files += [contained(root, a['path']) for a in read_json(contained(root, 'assets/manifest.json'))]
     files += sorted((Path(root) / 'src').rglob('*.cs'))
-    files += [contained(root, 'Character.csproj'), contained(root, 'design/model-ids.json')]
+    files += [contained(root, 'Character.csproj'), contained(root, 'design/model-ids.json'), contained(root, 'design/generated-files.json')]
     return digest(encoded({p.relative_to(root).as_posix(): digest(p.read_bytes()) for p in files}))

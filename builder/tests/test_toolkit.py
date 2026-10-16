@@ -73,6 +73,13 @@ class ToolkitTests(unittest.TestCase):
         result = subprocess.run([os.sys.executable, str(clone / 'tools/character-builder/scripts/character-builder.py'),
                                  '--project', str(clone), 'test'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+        # Ownership information must survive cloning, not live only in ignored workflow state.
+        config = read_json(clone / 'character.json')
+        config['hp'] = 74
+        atomic(clone / 'character.json', encoded(config))
+        generate(clone / 'tools/character-builder', clone)
+        generate(clone / 'tools/character-builder', clone, freeze=True)
+        generate(clone / 'tools/character-builder', clone, check=True)
 
     def test_existing_destination_preserved(self):
         sentinel = self.project / 'sentinel'
@@ -128,6 +135,11 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(resume(self.toolkit, self.project)['steps']['mechanics']['status'], 'pending')
         with self.assertRaises(BuilderError):
             record(self.toolkit, self.project, 'verify', 'complete', [], 'No evidence')
+
+    def test_equivalent_root_spellings_produce_identical_evidence(self):
+        alias = self.project / '..' / self.project.name
+        self.assertEqual(input_hash(alias), input_hash(self.project.resolve()))
+        self.assertEqual(source_hash(alias), source_hash(self.project.resolve()))
 
     def test_asset_hashes_paths_and_disabled_features(self):
         self.edit('assets/manifest.json', lambda a: a[0].__setitem__('path', '../outside.svg'))

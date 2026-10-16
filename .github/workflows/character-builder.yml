@@ -1,6 +1,7 @@
 name: Character builder
 on:
   push:
+    branches: [main]
     paths: ['builder/**', 'scripts/character-builder.py', '.github/workflows/character-builder.yml']
   pull_request:
     paths: ['builder/**', 'scripts/character-builder.py', '.github/workflows/character-builder.yml']

@@ -148,6 +148,7 @@ def build(toolkit, root, game_data):
 
 
 def source_hash(root):
+    root = Path(root).resolve()
     paths = [contained(root, 'Character.csproj'), *sorted((root / 'src').rglob('*.cs'))]
     return digest(encoded({p.relative_to(root).as_posix(): digest(contained(root, p.relative_to(root).as_posix()).read_bytes()) for p in paths}))
 

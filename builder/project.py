@@ -168,7 +168,7 @@ def generated(toolkit, root):
 
 def generate(toolkit, root, check=False, freeze=False):
     outputs = generated(toolkit, root)
-    marker = contained(root, '.builder/generated.json')
+    marker = contained(root, 'design/generated-files.json')
     old = read_json(marker) if marker.exists() else {}
     identities = contained(root, 'design/model-ids.json')
     config, cards, _, _ = validate(toolkit, root)
@@ -181,6 +181,7 @@ def generate(toolkit, root, check=False, freeze=False):
         if previous['namespace'] != ids['namespace'] or previous['mod_id'] != ids['mod_id'] or not set(previous['models']) <= set(ids['models']):
             raise BuilderError('Saved model identity removed or renamed; an explicit migration is required')
     outputs['design/model-ids.json'] = encoded(ids)
+    expected_hashes = {p: digest(data) for p, data in outputs.items()}
     # Validate all ownership before the first mutation, including stale files.
     for path in outputs.keys() | old.keys():
         target = contained(root, path)
@@ -191,10 +192,12 @@ def generate(toolkit, root, check=False, freeze=False):
                 raise BuilderError(f'Hand-edited/unowned generated file: {path}; preserve it in src/Extensions before regenerating')
         if check and (path not in outputs or not target.exists() or target.read_bytes() != outputs[path]):
             raise BuilderError(f'Stale generated output: {path}; run generate')
+    if check and old != expected_hashes:
+        raise BuilderError('Stale generated-file manifest; run generate')
     if not check:
         for path, data in outputs.items():
             atomic(contained(root, path), data)
         for path in old.keys() - outputs.keys():
             contained(root, path).unlink(missing_ok=True)
-        atomic(marker, encoded({p: digest(data) for p, data in outputs.items()}))
+        atomic(marker, encoded(expected_hashes))
     return dict(status='current' if check else 'generated', files=list(outputs))
