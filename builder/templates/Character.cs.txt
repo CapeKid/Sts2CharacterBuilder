@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
@@ -32,6 +33,9 @@ public static partial class ModEntry
     static partial void Configure();
     public static void Initialize()
     {
+#if BUILDER_NATIVE_TESTS
+        NativeProbe.Initialize();
+#endif
         Configure();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
     }
@@ -160,7 +164,10 @@ public abstract class CharacterCard : CustomCardModel
         new BlockVar(Row.GetProperty("base").GetProperty("block").GetInt32(), ValueProp.Move)
     ];
     public override IEnumerable<CardKeyword> CanonicalKeywords => Row.GetProperty("exhaust").GetBoolean() ? [CardKeyword.Exhaust] : [];
-    public override List<(string,string)> Localization => [("title", Row.GetProperty("name").GetString()!), ("description", Rules)];
+    public override List<(string,string)> Localization => [("title", Row.GetProperty("name").GetString()!), ("description", "{Rules}")];
+    protected override void AddExtraArgsToDescription(LocString description) => description.Add("Rules", Rules
+        .Replace("{Damage}", DynamicVars.Damage.ToHighlightedString(false))
+        .Replace("{Block}", DynamicVars.Block.ToHighlightedString(false)));
     private string Rules => string.Join(" NL ", new[] {
         Number("damage") > 0 ? "Deal {Damage} damage" + (TargetType == TargetType.AllEnemies ? " to ALL enemies." : ".") : null,
         Number("block") > 0 ? "Gain {Block} Block." : null,

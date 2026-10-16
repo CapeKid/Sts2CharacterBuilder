@@ -10,7 +10,9 @@ Start an AI at [the create-character skill](builder/skills/create-character/SKIL
 python scripts/character-builder.py --project ../MyCharacter init --id MyCharacter --idea "Your character concept" --mode expedited
 ```
 
-The initial six-card design is a prototype, not an automatically completed native-sized card pool. The runtime implements a bounded effect vocabulary and a run-local Focus power. Agents author bespoke features in project-owned extensions. Disabled optional features use explicit native/original-placeholder fallbacks. Generated packages do not include the reference mod, game files or the toolkit.
+The initial eight-card design is a prototype, not an automatically completed native-sized card pool. The runtime implements a bounded effect vocabulary and a run-local Focus power. Agents author bespoke features in project-owned extensions. Disabled optional features use explicit native/original-placeholder fallbacks. Generated packages do not include the reference mod, game files or the toolkit.
+
+`prepare-lab` and `test-native` provide opt-in isolated gameplay checks using an independent copy of an owned game and a dedicated save backend. The test-only probe is excluded from normal builds/packages. A local v0.111.0 fixture passed 26 native checks, including extra Energy/AoE cases; see [native verification](builder/NATIVE-TESTING.md) for coverage and remaining limits. `balance --comparator CHARACTER.IRONCLAD` uses a passing current lab's native rarity/type counts rather than a hardcoded full-pool target.
 
 - [Design and extraction plan](docs/character-builder-design.md)
 - [Implementation issue](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1)

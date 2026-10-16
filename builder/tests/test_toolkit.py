@@ -11,7 +11,7 @@ import zipfile
 
 from builder.contracts import BuilderError, digest, encoded, input_hash, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
-from builder.verification import balance, build, compare_delivery, pin_check, record, resume, source_hash, stage, verify
+from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -223,6 +223,35 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'stale'):
             stage(self.toolkit, self.project)
 
+    def test_native_evidence_requires_complete_current_coverage(self):
+        self.mock_build()
+        cards = read_json(self.project / 'design/cards.json')
+        # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume')]
+        checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
+        receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=checks,
+                       input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
+                       toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
+                       native_comparators=[dict(character='CHARACTER.FIXTURE', cards=[dict(type='Attack', rarity='Common')] * 3)])
+        def publish():
+            data = encoded(receipt)
+            atomic(self.project / 'private/synthetic-evidence.json', data)
+            atomic(self.project / '.builder/native-evidence.json', encoded(dict(path='private/synthetic-evidence.json', sha256=digest(data))))
+        publish()
+        self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        self.assertEqual(verify(self.toolkit, self.project)['native']['status'], 'pass')
+        parity = balance(self.toolkit, self.project, 'CHARACTER.FIXTURE')['native_parity']
+        self.assertEqual(parity['expected'], 3)
+        self.assertEqual(parity['deficits'], {'Common/Attack': 1})
+        receipt['checks'].pop()
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'cover'):
+            native_evidence(self.toolkit, self.project)
+        receipt['checks'] = checks
+        self.edit('character.json', lambda c: c.__setitem__('hp', 72))
+        generate(self.toolkit, self.project)
+        self.assertEqual(verify(self.toolkit, self.project)['native']['status'], 'stale')
+
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
         try:
@@ -232,6 +261,7 @@ class ToolkitTests(unittest.TestCase):
             raise
         self.assertEqual(receipt['kind'], 'compile')
         self.assertEqual(receipt['native_gameplay'], 'unperformed')
+        self.assertNotIn(b'NativeProbe', (self.project / 'build/native/TestHero.dll').read_bytes())
         self.assertTrue(read_json(self.project / 'design/model-ids.json')['frozen'])
         stage(self.toolkit, self.project)
 

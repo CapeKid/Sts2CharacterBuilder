@@ -7,10 +7,12 @@
     <AssemblyName>@ID@</AssemblyName>
     <RootNamespace>@NAMESPACE@</RootNamespace>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <DefineConstants Condition="'$(BuilderNativeTests)' == 'true'">$(DefineConstants);BUILDER_NATIVE_TESTS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.7" PrivateAssets="All" />
     <Compile Include="src/**/*.cs" />
+    <Compile Include="$(BuilderProbeSource)" Condition="'$(BuilderNativeTests)' == 'true'" />
     <EmbeddedResource Include="design/cards.json" LogicalName="CharacterCards" />
     <Reference Include="sts2"><HintPath>$(Sts2DataDir)/sts2.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="GodotSharp"><HintPath>$(Sts2DataDir)/GodotSharp.dll</HintPath><Private>false</Private></Reference>

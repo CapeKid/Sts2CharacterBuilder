@@ -81,7 +81,33 @@ def record(toolkit, root, step, status, evidence, note):
     return state[step]
 
 
-def balance(toolkit, root):
+def native_evidence(toolkit, root):
+    marker = contained(root, '.builder/native-evidence.json')
+    if not marker.exists():
+        return None
+    index = read_json(marker)
+    evidence_path = contained(root, index['path'])
+    if not evidence_path.is_file() or digest(evidence_path.read_bytes()) != index['sha256']:
+        raise BuilderError('Native evidence changed or disappeared')
+    receipt = read_json(evidence_path)
+    config, cards, _, lock = validate(toolkit, root)
+    build_receipt = read_json(contained(root, '.builder/build.json'))
+    if (receipt.get('kind') != 'native' or receipt.get('ok') is not True or receipt.get('process_exit') != 0
+            or receipt.get('input_sha256') != input_hash(root) or receipt.get('source_sha256') != source_hash(root)
+            or receipt.get('toolkit_commit') != lock['toolkit_commit']
+            or receipt.get('release_dll_sha256') != build_receipt['dll_sha256']
+            or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
+        raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
+    labels = {check.get('check') for check in receipt.get('checks', [])}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume'}
+    played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
+    expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
+    if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
+        raise BuilderError('Native evidence does not cover the required suite and every generated upgrade')
+    return receipt
+
+
+def balance(toolkit, root, comparator=None):
     config, cards, _, _ = validate(toolkit, root)
     findings = []
     for card in cards:
@@ -107,9 +133,31 @@ def balance(toolkit, root):
     reward = [c for c in cards if c['rarity'] != 'Basic']
     distribution = {key: {value: sum(c[key] == value for c in reward) for value in sorted({c[key] for c in reward})}
                     for key in ('rarity', 'type')}
-    return dict(kind='heuristic', input_sha256=input_hash(root), findings=findings, reward_cards=len(reward),
+    report = dict(kind='heuristic', input_sha256=input_hash(root), findings=findings, reward_cards=len(reward),
                 distribution=distribution, gaps=['Native comparator counts/type/rarity mix not supplied',
                 'No campaign, synergy or human playtest evidence; thresholds are warnings, not balance verdicts'])
+    merchant_counts = {kind: sum(c['type'] == kind for c in reward) for kind in ('Attack', 'Skill', 'Power')}
+    report['merchant_coverage'] = dict(actual=merchant_counts, minimum=dict(Attack=2, Skill=2, Power=1),
+                                     adequate=all(merchant_counts[kind] >= minimum for kind, minimum in [('Attack', 2), ('Skill', 2), ('Power', 1)]))
+    if comparator:
+        evidence = native_evidence(toolkit, root)
+        if evidence is None:
+            raise BuilderError('Native comparator parity requires a passing current test-native lab')
+        matches = [c for c in evidence['native_comparators'] if c['character'] == comparator]
+        if len(matches) != 1:
+            raise BuilderError('Choose an exact native comparator ID: ' + ', '.join(c['character'] for c in evidence['native_comparators']))
+        native = matches[0]['cards']
+        def cells(rows):
+            from collections import Counter
+            return dict(Counter(c['rarity'] + '/' + c['type'] for c in rows))
+        actual, target = cells(reward), cells(native)
+        report['native_parity'] = dict(character=comparator, game=evidence['game'], expected=len(native), actual=len(reward),
+            matches=target == actual,
+            target_cells=target, actual_cells=actual,
+            deficits={key: target.get(key, 0) - actual.get(key, 0) for key in sorted(target.keys() | actual.keys()) if target.get(key, 0) > actual.get(key, 0)},
+            excess={key: actual.get(key, 0) - target.get(key, 0) for key in sorted(target.keys() | actual.keys()) if actual.get(key, 0) > target.get(key, 0)})
+        report['gaps'].pop(0)
+    return report
 
 
 def build(toolkit, root, game_data):
@@ -126,7 +174,7 @@ def build(toolkit, root, game_data):
     out = contained(root, 'build/native')
     # Native outputs are never released by globbing this directory.
     result = subprocess.run(['dotnet', 'build', str(root / 'Character.csproj'), '-c', 'Release',
-                             '-o', str(out), f'-p:Sts2DataDir={game_data}'], cwd=root,
+                             '-o', str(out), f'-p:Sts2DataDir={game_data}', '-p:BuilderNativeTests=false'], cwd=root,
                             capture_output=True, text=True)
     atomic(contained(root, 'private/build.log'), (result.stdout + result.stderr).encode())
     if result.returncode:
@@ -165,6 +213,14 @@ def verify(toolkit, root):
             gaps.append(f'{feature}: requires project-owned implementation and native evidence; generator does not implement it')
     result = dict(kind='structural', toolkit_commit=lock['toolkit_commit'], input_sha256=input_hash(root),
                   source_sha256=source_hash(root), structural='pass', gaps=gaps, release_ready=False)
+    try:
+        evidence = native_evidence(toolkit, root)
+        result['native'] = dict(status='pass', checks=len(evidence['checks']), game=evidence['game']) if evidence else dict(status='unperformed')
+        if evidence:
+            result['gaps'][0] = 'Native numeric fixtures passed; visual selection/room presentation still unreviewed'
+            result['gaps'][1] = 'Native comparator catalog collected; original full-pool parity and human balance playtests still pending'
+    except BuilderError as error:
+        result['native'] = dict(status='stale', reason=str(error))
     atomic(contained(root, 'private/verification.json'), encoded(result))
     return result
 
@@ -189,6 +245,13 @@ def stage(toolkit, root):
                   input_sha256=input_hash(root), build=receipt, release_ready=False,
                   files={p: digest(data) for p, data in sorted(files.items())},
                   dependency='Install BaseLib 3.4.7 separately; it is not bundled')
+    try:
+        evidence = native_evidence(toolkit, root)
+        report['native_validation'] = dict(status='pass', game=evidence['game'], checks=len(evidence['checks']),
+            test_dll_sha256=evidence.get('test_dll_sha256'), probe_source_sha256=evidence.get('probe_source_sha256'),
+            gaps=evidence.get('gaps', [])) if evidence else dict(status='unperformed')
+    except BuilderError as error:
+        report['native_validation'] = dict(status='stale', reason=str(error))
     files[prefix + 'package-inspection.json'] = encoded(report)
     dist = contained(root, 'dist')
     dist.mkdir(exist_ok=True)
