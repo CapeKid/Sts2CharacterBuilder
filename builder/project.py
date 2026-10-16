@@ -56,7 +56,9 @@ def starter_cards():
             card('Practice', 'Skill', 'Basic', 1, 'focus', 1, 1, True),
             card('Swing', 'Attack', 'Common', 1, 'damage', 9, 3),
             card('Breathe', 'Skill', 'Uncommon', 1, 'draw', 2, 1),
-            card('Composure', 'Power', 'Rare', 2, 'focus', 2, 1)]
+            card('Composure', 'Power', 'Rare', 2, 'focus', 2, 1),
+            card('Lunge', 'Attack', 'Common', 2, 'damage', 14, 5),
+            card('Brace', 'Skill', 'Common', 1, 'block', 8, 3)]
 
 
 def placeholder(kind, color):

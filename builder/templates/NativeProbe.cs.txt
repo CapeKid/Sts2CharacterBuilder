@@ -1,0 +1,280 @@
+// Included only in an explicit test build, never in the normal character DLL.
+#if BUILDER_NATIVE_TESTS
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using Environment = System.Environment;
+using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.Merchant;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Encounters;
+using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Rewards;
+using MegaCrit.Sts2.Core.Rooms;
+using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.ValueProps;
+
+namespace @NAMESPACE@;
+
+internal static class NativeProbe
+{
+    private static SceneTree Tree => (SceneTree)Engine.GetMainLoop();
+    private static string DirectoryPath = "";
+    private static JsonElement Request;
+    private static bool Started;
+    private static readonly List<object> Checks = new();
+    private static readonly List<string> Failures = new();
+    private static readonly PileType[] Piles = [PileType.Draw, PileType.Hand, PileType.Discard, PileType.Exhaust, PileType.Play];
+    private static RunState Run => (RunState?)AccessTools.Property(typeof(RunManager), "State").GetValue(RunManager.Instance)
+        ?? throw new InvalidOperationException("No isolated run.");
+    private static string Sha(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+    private static void Require(bool condition, string message) { if (!condition) throw new InvalidDataException(message); }
+
+    private static string Physical(string value)
+    {
+        var full = Path.GetFullPath(value); var current = Path.GetPathRoot(full)!;
+        foreach (var part in full[current.Length..].Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) {
+            if (part.Length == 0) continue;
+            current = Path.Combine(current, part);
+            var info = new DirectoryInfo(current);
+            if (info.Exists && info.Attributes.HasFlag(FileAttributes.ReparsePoint)) current = info.ResolveLinkTarget(true)!.FullName;
+        }
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(current));
+    }
+
+    internal static void Initialize()
+    {
+        // Fail before replacing/accessing saves unless the exact prepared lab/profile agrees.
+        var root = Environment.GetEnvironmentVariable("STSCB_TEST_ROOT");
+        var token = Environment.GetEnvironmentVariable("STSCB_TEST_TOKEN");
+        if (string.IsNullOrEmpty(root) || !Path.IsPathFullyQualified(root)) throw new InvalidOperationException("Test build requires an absolute prepared lab root.");
+        DirectoryPath = Physical(root);
+        using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(DirectoryPath, "request.json")));
+        Request = doc.RootElement.Clone();
+        Require(token == Request.GetProperty("token").GetString(), "Lab request token differs.");
+        var expectedProfile = Physical(Request.GetProperty("profile_path").GetString()!);
+        Require(Path.GetFileName(expectedProfile).StartsWith("Sts2CharacterBuilderLab-", StringComparison.Ordinal), "Invalid isolated profile name.");
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        Require(Physical(OS.GetUserDataDir()).Equals(expectedProfile, comparison), "Godot profile differs from the prepared isolated profile.");
+        using var marker = JsonDocument.Parse(File.ReadAllText(Path.Combine(expectedProfile, "builder-lab.json")));
+        Require(marker.RootElement.GetProperty("token").GetString() == token, "Profile marker differs.");
+        var assembly = Physical(typeof(ModEntry).Assembly.Location);
+        Require(assembly.StartsWith(DirectoryPath + Path.DirectorySeparatorChar, comparison), "Test DLL is outside the lab.");
+        Require(Sha(assembly) == Request.GetProperty("test_dll_sha256").GetString(), "Loaded test DLL differs.");
+        Require(Sha(typeof(CardModel).Assembly.Location) == Request.GetProperty("game_dll_sha256").GetString(), "Loaded game assembly differs.");
+        Require(Sha(typeof(BaseLib.Abstracts.CustomCardModel).Assembly.Location) == Request.GetProperty("baselib_sha256").GetString(), "Loaded BaseLib differs.");
+        var settings = SaveManager.Instance.SettingsSave;
+        var manager = new SaveManager(new GodotFileIo("user://builder-tests"));
+        SaveManager.MockInstanceForTesting(manager);
+        manager.InitSettingsDataForTest();
+        manager.SettingsSave.Language = "eng";
+        manager.SettingsSave.SeenEaDisclaimer = true;
+        manager.SettingsSave.Fullscreen = false;
+        manager.SettingsSave.WindowSize = new(1280, 800);
+        manager.SettingsSave.ModSettings = settings.ModSettings;
+        Tree.ProcessFrame += Begin;
+        GD.Print("Character builder isolated native probe ready; Steam Cloud save backend replaced.");
+    }
+
+    private static void Write(string name, object value)
+    {
+        var path = Path.Combine(DirectoryPath, name);
+        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(value));
+        File.Move(path + ".tmp", path, true);
+    }
+    private static void Progress(string phase) => Write("progress.json", new { phase, checks = Checks.Count, failures = Failures.Count });
+    private static async Task Wait(Func<bool> condition, string label)
+    {
+        var deadline = Time.GetTicksMsec() + 20000;
+        while (!condition()) {
+            if (Time.GetTicksMsec() > deadline) throw new TimeoutException(label);
+            await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+        }
+    }
+    private static async Task PlayPhase()
+    {
+        await Wait(() => Run.Players.Single().PlayerCombatState?.Phase == PlayerTurnPhase.Play && !RunManager.Instance.ActionExecutor.IsRunning, "Player play phase did not arrive.");
+    }
+    private static async void Begin()
+    {
+        if (Started || NGame.Instance?.MainMenu == null) return;
+        Started = true; Tree.ProcessFrame -= Begin;
+        object? comparators = null;
+        try {
+            Progress("registration");
+            var character = ModelDb.Character<Character>();
+            Require(ModelDb.AllCharacters.Contains(character), "Character is absent from native registration.");
+            Require(ModelDb.AllCards.Select(c => c.Id).Distinct().Count() == ModelDb.AllCards.Count(), "Duplicate native card IDs.");
+            using (var icon = character.CustomIcon) Require(icon != null, "Missing character icon.");
+            Checks.Add(new { check = "registration", character = character.Id.ToString(), hp = character.StartingHp });
+            comparators = ModelDb.AllCharacters.Where(c => c.GetType().Assembly == typeof(CardModel).Assembly).Select(c => new {
+                character = c.Id.ToString(), pool = c.CardPool.Id.ToString(),
+                cards = c.CardPool.AllCards.Where(m => m.Rarity is CardRarity.Common or CardRarity.Uncommon or CardRarity.Rare).Select(m => new {
+                    id = m.Id.ToString(), rarity = m.Rarity.ToString(), type = m.Type.ToString(),
+                    cost = m.EnergyCost.GetWithModifiers(CostModifiers.All),
+                    vars = m.DynamicVars.ToDictionary(v => v.Key, v => v.Value.BaseValue)
+                }).ToArray()
+            }).ToArray();
+            Progress("start-run");
+            await NGame.Instance.StartNewSingleplayerRun(character, true, ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "CHARACTER-BUILDER-NATIVE-FIXTURE", GameMode.Standard, 0);
+            var player = Run.Players.Single();
+            Require(player.Deck.Cards.Select(c => c.Id).OrderBy(x => x.ToString()).SequenceEqual(character.StartingDeck.Select(c => c.Id).OrderBy(x => x.ToString())), "Starting deck differs.");
+            Require(player.Relics.Select(r => r.Id).SequenceEqual(character.StartingRelics.Select(r => r.Id)), "Starting relics differ.");
+            Checks.Add(new { check = "starting-kit", deck = player.Deck.Cards.Count, relics = player.Relics.Select(r => r.Id.ToString()).ToArray() });
+            await Room();
+            var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
+            if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
+            Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
+                var key = row.GetProperty("id").GetString()!;
+                Progress("card:" + key + (upgraded ? "+" : ""));
+                try { Checks.Add(await Card(row, upgraded)); }
+                catch (Exception error) { Failures.Add(key + (upgraded ? "+" : "") + ": " + error); await Room(); }
+            }
+            Progress("resource-turn");
+            await ResourceTurn();
+            Progress("rewards-shop");
+            try { RewardsAndShop(); } catch (Exception error) { Failures.Add("rewards-shop: " + error); }
+            Progress("save-resume");
+            await SaveResume();
+        } catch (Exception error) { Failures.Add(error.ToString()); }
+        Write("result.json", new {
+            kind = "native", ok = Failures.Count == 0, token = Request.GetProperty("token").GetString(),
+            input_sha256 = Request.GetProperty("input_sha256").GetString(),
+            test_dll_sha256 = Sha(typeof(ModEntry).Assembly.Location), game_dll_sha256 = Sha(typeof(CardModel).Assembly.Location),
+            baselib_sha256 = Sha(typeof(BaseLib.Abstracts.CustomCardModel).Assembly.Location),
+            checks = Checks, failures = Failures, native_comparators = comparators,
+            gaps = new[] { "Visual room/selection review, physical devices and online co-op unperformed", "Bespoke extension effects are outside the numeric fixtures", "Campaign balance and Workshop delivery unperformed" }
+        });
+        Tree.Quit(Failures.Count == 0 ? 0 : 1);
+    }
+
+    private static async Task Room()
+    {
+        await RunManager.Instance.EnterRoomDebug(RoomType.Monster, model: ModelDb.Encounter<NibbitsNormal>().ToMutable(), showTransition: false);
+        RunManager.Instance.ActionExecutor.Unpause();
+        await PlayPhase();
+    }
+
+    private static async Task<object> Card(JsonElement row, bool upgraded)
+    {
+        var player = Run.Players.Single(); var creature = player.Creature; var combat = creature.CombatState!;
+        var context = new BlockingPlayerChoiceContext();
+        await CardPileCmd.RemoveFromCombat(CardPile.GetCards(player, Piles).ToArray(), skipVisuals: true);
+        foreach (var power in creature.Powers.ToArray()) await PowerCmd.Remove(power);
+        creature.LoseBlockInternal(creature.Block);
+        var enemies = combat.GetOpponentsOf(creature).Where(e => e.IsAlive).ToArray();
+        Require(enemies.Length > 0, "Fixture has no live enemy.");
+        foreach (var enemy in enemies) {
+            foreach (var power in enemy.Powers.ToArray()) await PowerCmd.Remove(power);
+            enemy.SetMaxHpInternal(10000); enemy.SetCurrentHpInternal(10000); enemy.LoseBlockInternal(enemy.Block);
+        }
+        var guard = ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.DefendIronclad>();
+        for (var i = 0; i < 20; i++) await CardPileCmd.Add(combat.CreateCard(guard, player), PileType.Draw, skipVisuals: true);
+        var key = row.GetProperty("id").GetString()!;
+        var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Card_" + key, true)!;
+        var canonical = ModelDb.GetById<CardModel>(ModelDb.GetId(type));
+        Require(ModelDb.AllCards.Contains(canonical), "Card is absent from compendium registry.");
+        var card = combat.CreateCard(canonical, player);
+        if (upgraded) CardCmd.Upgrade(card);
+        await CardPileCmd.Add(card, PileType.Hand, skipVisuals: true);
+        await PlayerCmd.GainEnergy(20, player);
+        var values = row.GetProperty(upgraded ? "upgrade" : "base");
+        int Expected(string name) => values.GetProperty(name).GetInt32();
+        Require(card.EnergyCost.GetWithModifiers(CostModifiers.All) == Expected("cost"), "Upgraded cost differs.");
+        var text = System.Text.RegularExpressions.Regex.Replace(card.GetDescriptionForPile(PileType.Deck), @"\[[^\]]*\]", "");
+        foreach (var field in new[] { "draw", "energy", "focus" }) if (Expected(field) > 0) {
+            var phrase = field == "draw" ? $"Draw {Expected(field)} card" : $"Gain {Expected(field)} {(field == "energy" ? "Energy" : "Focus")}";
+            Require(text.Contains(phrase, StringComparison.Ordinal), "Card text does not match current upgrade values: " + phrase + " / " + text);
+        }
+        var energy = player.PlayerCombatState!.Energy;
+        if (card.TargetType == TargetType.AnyEnemy) {
+            Require(!card.TryManualPlay(null), "Invalid null target was accepted.");
+            Require(card.Pile?.Type == PileType.Hand && player.PlayerCombatState.Energy == energy, "Rejected action mutated card/energy.");
+        }
+        Require(card.TryManualPlay(card.TargetType == TargetType.AnyEnemy ? enemies[0] : null), "Native paid play refused.");
+        await Wait(() => card.Pile?.Type is not (PileType.Hand or PileType.Play), "Paid card never resolved.");
+        await Wait(() => NCard.FindOnTable(card) == null && !RunManager.Instance.ActionExecutor.IsRunning, "Card action/table node stranded.");
+        Require(player.PlayerCombatState.Energy == energy - Expected("cost") + Expected("energy"), "Paid energy/effect mismatch.");
+        Require(creature.Block == Expected("block"), "Block mismatch.");
+        for (var i = 0; i < enemies.Length; i++) Require(10000 - enemies[i].CurrentHp == (i == 0 || card.TargetType == TargetType.AllEnemies ? Expected("damage") : 0), "Damage/target mismatch.");
+        Require(player.PlayerCombatState.Hand.Cards.Count == Expected("draw"), "Draw count mismatch.");
+        var focus = creature.Powers.Where(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower").Sum(p => p.Amount);
+        Require(focus == Expected("focus"), "Resource amount mismatch.");
+        var expectedPile = card.Type == CardType.Power ? PileType.None : row.GetProperty("exhaust").GetBoolean() ? PileType.Exhaust : PileType.Discard;
+        Require((card.Pile?.Type ?? PileType.None) == expectedPile, "Card disposal mismatch.");
+        var saved = Run.LoadCard(card.ToSerializable(), player);
+        Require(saved.Id == card.Id && saved.IsUpgraded == card.IsUpgraded && saved.EnergyCost.GetWithModifiers(CostModifiers.All) == Expected("cost"), "Card save identity/cost changed.");
+        Require(saved.DynamicVars.Damage.BaseValue == card.DynamicVars.Damage.BaseValue && saved.DynamicVars.Block.BaseValue == card.DynamicVars.Block.BaseValue, "Upgraded stats changed on load.");
+        Run.RemoveCard(saved);
+        return new { check = "paid-card", card = key, upgraded, pile = expectedPile.ToString(), energy = Expected("cost"), energyGain = Expected("energy"), damage = Expected("damage"), block = Expected("block"), draw = Expected("draw"), focus, cardSaveRoundTrip = true, textVerified = true };
+    }
+
+    private static async Task ResourceTurn()
+    {
+        var player = Run.Players.Single(); var creature = player.Creature;
+        var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".FocusPower");
+        if (type == null) { Checks.Add(new { check = "resource-turn", skipped = true, reason = "Generated resource disabled" }); return; }
+        foreach (var power in creature.Powers.ToArray()) await PowerCmd.Remove(power);
+        var canonical = ModelDb.GetById<PowerModel>(ModelDb.GetId(type));
+        var context = new BlockingPlayerChoiceContext();
+        await PowerCmd.Apply(context, canonical.ToMutable(), creature, 3, creature, null);
+        var focus = creature.Powers.Single(p => p.GetType() == type);
+        creature.LoseBlockInternal(creature.Block);
+        await focus.BeforeSideTurnEnd(context, creature.Side, [creature]);
+        Require(creature.Block == 3, "Focus turn-end Block hook differs.");
+        var before = player.PlayerCombatState!.TurnNumber;
+        CombatManager.Instance.SetReadyToEndTurn(player, false);
+        await Wait(() => player.PlayerCombatState?.TurnNumber > before && player.PlayerCombatState.Phase == PlayerTurnPhase.Play && !RunManager.Instance.ActionExecutor.IsRunning, "Native next turn did not arrive.");
+        Require(creature.Powers.Single(p => p.GetType() == type).Amount == 3, "Resource lost across native turn transition.");
+        Checks.Add(new { check = "resource-turn", hookBlock = 3, nativeTurnAdvanced = true, preserved = true });
+    }
+
+    private static void RewardsAndShop()
+    {
+        var player = Run.Players.Single();
+        var allowed = player.Character.CardPool.GetUnlockedCards(player.UnlockState, player.RunState.CardMultiplayerConstraint).Where(c => c.Rarity is CardRarity.Common or CardRarity.Uncommon or CardRarity.Rare).Select(c => c.Id).ToHashSet();
+        var count = Math.Min(3, allowed.Count);
+        Require(count > 0, "No reward pool.");
+        var reward = new CardReward(CardCreationOptions.ForRoom(player, RoomType.Monster), count, player); reward.Populate();
+        Require(reward.Cards.Count() == count && reward.Cards.All(c => c.Owner == player && allowed.Contains(c.Id)), "Reward pool/owner mismatch.");
+        var shop = MerchantInventory.CreateForNormalMerchant(player);
+        var cards = shop.CharacterCardEntries.Select(e => e.CreationResult!.Card).ToArray();
+        Require(cards.Length > 0 && cards.All(c => c.Owner == player && allowed.Contains(c.Id)), "Shop pool/owner mismatch.");
+        Checks.Add(new { check = "rewards-shop", rewards = reward.Cards.Select(c => c.Id.ToString()).ToArray(), shop = cards.Select(c => c.Id.ToString()).ToArray() });
+        foreach (var card in reward.Cards.Concat(cards)) Run.RemoveCard(card);
+    }
+
+    private static async Task SaveResume()
+    {
+        var first = Run.Players.Single().Deck.Cards.First();
+        if (first.IsUpgradable) CardCmd.Upgrade(first);
+        var ids = Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).ToArray();
+        var relicIds = Run.Players.Single().Relics.Select(r => r.Id.ToString()).ToArray();
+        // Save a normal noncombat room; mid-combat persistence is not a native promise.
+        await RunManager.Instance.EnterRoomDebug(RoomType.RestSite, showTransition: false);
+        await SaveManager.Instance.SaveRun(null);
+        await NGame.Instance!.ReturnToMainMenu();
+        var save = SaveManager.Instance.LoadRunSave();
+        Require(save.Success && save.SaveData != null, "Native run save was not readable.");
+        var restored = RunState.FromSerializable(save.SaveData!);
+        await RunManager.Instance.SetUpSavedSingleplayer(restored, save.SaveData!);
+        await NGame.Instance!.LoadRun(restored, save.SaveData!.PreFinishedRoom);
+        Require(Run.Players.Single().Character.Id == ModelDb.Character<Character>().Id, "Character identity changed on resume.");
+        Require(Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).SequenceEqual(ids), "Deck identities/upgrades changed on resume.");
+        Require(Run.Players.Single().Relics.Select(r => r.Id.ToString()).SequenceEqual(relicIds), "Relic identities changed on resume.");
+        await Room();
+        var focus = Run.Players.Single().Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
+        if (Request.GetProperty("focus_starter").GetBoolean()) Require(focus?.Amount == 1, "Resource failed to reset at the next combat.");
+        Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids, relics = relicIds, nextCombatFocus = focus?.Amount ?? 0 });
+    }
+}
+#endif

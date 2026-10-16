@@ -1,4 +1,4 @@
-"""No global installs, account assumptions or network access outside explicit init/build."""
+"""Agent-neutral authoring with explicit project, dependency and native-lab inputs."""
 import argparse
 import json
 from pathlib import Path
@@ -6,6 +6,7 @@ from pathlib import Path
 from .contracts import BuilderError, validate
 from .project import STEPS, bootstrap, generate
 from .verification import balance, build, compare_delivery, doctor, pin_check, record, resume, stage, verify
+from .native_lab import prepare, run_native
 
 TOOLKIT = Path(__file__).resolve().parents[1]
 
@@ -28,8 +29,17 @@ def main():
     commands.add_parser('generate').add_argument('--check', action='store_true')
     commands.add_parser('resume')
     commands.add_parser('test', help='Structural verification; never claims native gameplay coverage')
-    commands.add_parser('balance')
+    commands.add_parser('balance').add_argument('--comparator', help='Exact character ID from current native lab evidence')
     commands.add_parser('stage', help='Stage a closed private-test ZIP from the current native build')
+    lab = commands.add_parser('prepare-lab', help='Build a test-only probe and independently copy an owned game into a disposable lab')
+    lab.add_argument('--game-root', required=True, type=Path)
+    lab.add_argument('--baselib-root', required=True, type=Path)
+    lab.add_argument('--workshop-root', required=True, type=Path)
+    lab.add_argument('--steam-userdata', required=True, type=Path)
+    lab.add_argument('--lab-id', required=True)
+    native = commands.add_parser('test-native', help='Run a prepared one-shot isolated native probe')
+    native.add_argument('--lab-id', required=True)
+    native.add_argument('--timeout', default=240, type=int)
     rec = commands.add_parser('record')
     rec.add_argument('step', choices=STEPS)
     rec.add_argument('--status', choices=['ready', 'running', 'complete', 'blocked'], required=True)
@@ -60,11 +70,15 @@ def main():
         elif args.command == 'test':
             result = verify(TOOLKIT, root)
         elif args.command == 'balance':
-            result = balance(TOOLKIT, root)
+            result = balance(TOOLKIT, root, args.comparator)
         elif args.command == 'build':
             result = build(TOOLKIT, root, args.game_data)
         elif args.command == 'stage':
             result = stage(TOOLKIT, root)
+        elif args.command == 'prepare-lab':
+            result = prepare(TOOLKIT, root, args.game_root, args.baselib_root, args.workshop_root, args.steam_userdata, args.lab_id)
+        elif args.command == 'test-native':
+            result = run_native(TOOLKIT, root, args.lab_id, args.timeout)
         elif args.command == 'compare-delivery':
             result = compare_delivery(root, args.directory)
         print(json.dumps(result, indent=2))
