@@ -2,7 +2,15 @@
 
 A separate development repository for an AI-guided Slay the Spire 2 character-builder toolkit.
 
-**Status:** pre-implementation design review. The toolkit is not implemented yet. Existing runtime, assets and tools are the imported Spire Legacy reference implementation, not a finished generic builder.
+**Status:** portable prototype implementation. The builder now bootstraps pinned submodule projects, generates a small conventional character, validates designs, resumes evidence-backed work, compiles against owned game references, flags balance risks and stages closed private-test packages. Native gameplay, full optional-content generation and Workshop clean-room delivery gates remain open; this is not yet a finished generic builder.
+
+Start an AI at [the create-character skill](builder/skills/create-character/SKILL.md). It routes guided or idea-only authoring through focused skills, including art, items, events, dialogue, sprites, audio, verification, balance and publishing. See [commands and ownership](builder/WORKFLOW.md), [publishing](builder/PUBLISHING.md) and [implementation status](docs/character-builder-status.md).
+
+```powershell
+python scripts/character-builder.py --project ../MyCharacter init --id MyCharacter --idea "Your character concept" --mode expedited
+```
+
+The initial six-card design is a prototype, not an automatically completed native-sized card pool. The runtime implements a bounded effect vocabulary and a run-local Focus power. Agents author bespoke features in project-owned extensions. Disabled optional features use explicit native/original-placeholder fallbacks. Generated packages do not include the reference mod, game files or the toolkit.
 
 - [Design and extraction plan](docs/character-builder-design.md)
 - [Implementation issue](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1)

@@ -1,0 +1,169 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "id": {
+      "type": "string",
+      "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "idea": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "version": {
+      "type": "string",
+      "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "guided",
+        "expedited"
+      ]
+    },
+    "target": {
+      "type": "string",
+      "enum": [
+        "regular",
+        "public-beta"
+      ]
+    },
+    "hp": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    },
+    "color": {
+      "type": "string",
+      "pattern": "[0-9A-Fa-f]{6}"
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mechanic": {
+          "type": "boolean"
+        },
+        "cards": {
+          "type": "boolean"
+        },
+        "art": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "boolean"
+        },
+        "dialogue": {
+          "type": "boolean"
+        },
+        "sprites": {
+          "type": "boolean"
+        },
+        "presentation": {
+          "type": "boolean"
+        },
+        "audio": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mechanic",
+        "cards",
+        "art",
+        "items",
+        "events",
+        "dialogue",
+        "sprites",
+        "presentation",
+        "audio"
+      ]
+    },
+    "starting_deck": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+      },
+      "maxItems": 30
+    },
+    "choices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "step": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "user",
+              "ai",
+              "skip"
+            ]
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "step",
+          "decision",
+          "notes"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "namespace",
+    "name",
+    "author",
+    "idea",
+    "description",
+    "version",
+    "mode",
+    "target",
+    "hp",
+    "color",
+    "features",
+    "starting_deck",
+    "choices"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,45 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "path": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240
+      },
+      "sha256": {
+        "type": "string",
+        "pattern": "[0-9a-f]{64}"
+      },
+      "method": {
+        "type": "string",
+        "enum": [
+          "original-placeholder",
+          "supplied",
+          "generated",
+          "original"
+        ]
+      },
+      "license": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "credit": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "required": [
+      "path",
+      "sha256",
+      "method",
+      "license",
+      "credit"
+    ]
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

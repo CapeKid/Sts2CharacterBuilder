@@ -2,7 +2,7 @@
 
 This repository owns the reusable character-builder work. Keep its implementation, design reviews, issues and PRs here, separate from CapeKid/SpireLegacy.
 
-Start with README.md and docs/character-builder-design.md. The toolkit is not implemented yet; the imported Spire Legacy runtime and tools are reference material. Do not describe the repository as a working generic builder until the documented completion gates are met.
+Start with README.md, docs/character-builder-design.md and docs/character-builder-status.md. The portable prototype lives in builder/ with its CLI at scripts/character-builder.py. The imported Spire Legacy runtime and tools remain reference material. Do not describe the repository as a finished generic builder until the documented completion gates are met.
 
 The owner permanently excluded progression systems: do not extract heirs, inheritance, manor upgrades, crowns or other cross-run progression into the toolkit, including optional extensions.
 

@@ -1,0 +1,146 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "Attack",
+          "Skill",
+          "Power"
+        ]
+      },
+      "rarity": {
+        "type": "string",
+        "enum": [
+          "Basic",
+          "Common",
+          "Uncommon",
+          "Rare"
+        ]
+      },
+      "target": {
+        "type": "string",
+        "enum": [
+          "Self",
+          "AnyEnemy",
+          "AllEnemies"
+        ]
+      },
+      "exhaust": {
+        "type": "boolean"
+      },
+      "base": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "damage": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "block": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "draw": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "energy": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "focus": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "cost",
+          "damage",
+          "block",
+          "draw",
+          "energy",
+          "focus"
+        ]
+      },
+      "upgrade": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "damage": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "block": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "draw": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "energy": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "focus": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "cost",
+          "damage",
+          "block",
+          "draw",
+          "energy",
+          "focus"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "type",
+      "rarity",
+      "target",
+      "exhaust",
+      "base",
+      "upgrade"
+    ]
+  },
+  "maxItems": 300,
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
