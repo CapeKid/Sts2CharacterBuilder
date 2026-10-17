@@ -76,7 +76,7 @@ public sealed partial class Character : PlaceholderCharacterModel
     };
     public override CardPoolModel CardPool => ExtensionHooks.CardPool?.Invoke() ?? @CARD_POOL@;
     public override RelicPoolModel RelicPool => ExtensionHooks.RelicPool?.Invoke() ?? @RELIC_POOL@;
-    public override PotionPoolModel PotionPool => ExtensionHooks.PotionPool?.Invoke() ?? ModelDb.PotionPool<IroncladPotionPool>();
+    public override PotionPoolModel PotionPool => ExtensionHooks.PotionPool?.Invoke() ?? @POTION_POOL@;
     public override IEnumerable<CardModel> StartingDeck => ExtensionHooks.StartingDeck?.Invoke() ?? [@DECK@];
     public override IReadOnlyList<RelicModel> StartingRelics => ExtensionHooks.StartingRelics?.Invoke() ?? [@START_RELIC@];
     public override List<(string,string)> Localization => [

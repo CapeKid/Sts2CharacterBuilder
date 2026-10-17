@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "relics",
+    "potions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "starting_relic": {
+      "type": "string",
+      "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+    },
+    "relics": {
+      "type": "array",
+      "maxItems": 60,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rarity",
+          "effects",
+          "trigger",
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "Starter",
+              "Common",
+              "Uncommon",
+              "Rare",
+              "Shop"
+            ]
+          },
+          "effects": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "block",
+              "draw",
+              "energy",
+              "focus"
+            ],
+            "properties": {
+              "block": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 30
+              },
+              "draw": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
+              "energy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "focus": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "first-turn",
+              "turn-start"
+            ]
+          },
+          "flavor": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "potions": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "effects",
+          "id",
+          "name",
+          "rarity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "rarity": {
+            "type": "string",
+            "enum": [
+              "Common",
+              "Uncommon",
+              "Rare"
+            ]
+          },
+          "effects": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "block",
+              "draw",
+              "energy",
+              "focus"
+            ],
+            "properties": {
+              "block": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 30
+              },
+              "draw": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5
+              },
+              "energy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "focus": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,185 @@
+#if BUILDER_AUTHORED_ITEMS
+    private static readonly List<Task> ItemHooks = new();
+    private static void ObserveItemHook(Task __result) => ItemHooks.Add(__result);
+#endif
+    private static async Task SettleItemHooks()
+    {
+        await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+#if BUILDER_AUTHORED_ITEMS
+        await Task.WhenAll(ItemHooks.ToArray());
+        ItemHooks.Clear();
+#endif
+        await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+        await PlayPhase();
+    }
+
+    private static async Task Items()
+    {
+#if BUILDER_AUTHORED_ITEMS
+        var player = Run.Players.Single();
+        var rows = Request.GetProperty("items");
+        var relics = rows.GetProperty("relics").EnumerateArray().Select(row => Relic(row)).ToArray();
+        var potions = rows.GetProperty("potions").EnumerateArray().Select(row => Potion(row)).ToArray();
+        var bag = player.RelicGrabBag.ToSerializable();
+        var bagIds = bag.RelicIdLists.Values.SelectMany(ids => ids).ToHashSet();
+        Require(relics.All(r => (r.Rarity == RelicRarity.Starter) != bagIds.Contains(r.Id)), "Authored relic bag eligibility differs.");
+        Require(relics.All(r => player.Character.RelicPool.AllRelics.Contains(r)), "Authored relic is absent from its character pool.");
+        Require(potions.All(p => player.Character.PotionPool.AllPotions.Contains(p)), "Authored potion is absent from its character pool.");
+        foreach (var character in ModelDb.AllCharacters.Where(c => c.GetType().Assembly == typeof(CardModel).Assembly)) {
+            Require(!character.RelicPool.AllRelics.Any(r => relics.Any(own => own.Id == r.Id)), "Authored relic leaked into a native character pool.");
+            Require(!character.PotionPool.AllPotions.Any(p => potions.Any(own => own.Id == p.Id)), "Authored potion leaked into a native character pool.");
+        }
+        var method = AccessTools.Method(typeof(PotionFactory), "GetPotionOptions");
+        var options = ((IEnumerable<PotionModel>)method.Invoke(null, method.GetParameters().Length == 1
+            ? [player] : [player, Array.Empty<PotionModel>()])!).ToArray();
+        Require(potions.All(p => options.Any(o => o.Id == p.Id)), "Authored potion missing from native generation options.");
+        Require(ModelDb.PotionPool<MegaCrit.Sts2.Core.Models.PotionPools.SharedPotionPool>().GetUnlockedPotions(player.UnlockState)
+            .All(p => options.Count(o => o.Id == p.Id) == 1), "Shared potion availability changed.");
+        // Native rarity filtering must keep both generated and default starters out of shops.
+        for (var i = 0; i < 20; i++) Require(MerchantInventory.CreateForNormalMerchant(player).RelicEntries
+            .All(entry => entry.Model.Rarity != RelicRarity.Starter), "Starter relic appeared in shop.");
+        player.RelicGrabBag.LoadFromSerializable(bag);
+        Checks.Add(new { check = "item-pools", relics = relics.Select(r => r.Id.ToString()).ToArray(),
+            potions = potions.Select(p => p.Id.ToString()).ToArray(), nativePoolsUnchanged = true, starterShopExcluded = true });
+        foreach (var old in player.Relics.OfType<AuthoredRelic>().ToArray()) await RelicCmd.Remove(old);
+        foreach (var row in rows.GetProperty("relics").EnumerateArray()) {
+            Progress("relic:" + row.GetProperty("id").GetString());
+            await RelicCase(row);
+        }
+        foreach (var row in rows.GetProperty("potions").EnumerateArray()) {
+            Progress("potion:" + row.GetProperty("id").GetString());
+            await PotionCase(row);
+        }
+#else
+        await Task.CompletedTask;
+        Checks.Add(new { check = "item-pools", skipped = true, reason = "No authored items" });
+#endif
+    }
+
+    private static async Task ItemsForSave()
+    {
+#if BUILDER_AUTHORED_ITEMS
+        var player = Run.Players.Single();
+        foreach (var row in Request.GetProperty("items").GetProperty("relics").EnumerateArray())
+            if (!player.Relics.Any(r => r.Id == Relic(row).Id)) await RelicCmd.Obtain(Relic(row).ToMutable(), player);
+        foreach (var old in player.Potions.ToArray()) await PotionCmd.Discard(old);
+        foreach (var row in Request.GetProperty("items").GetProperty("potions").EnumerateArray())
+            if (!(await PotionCmd.TryToProcure(Potion(row).ToMutable(), player)).success) break;
+#else
+        await Task.CompletedTask;
+#endif
+    }
+
+#if BUILDER_AUTHORED_ITEMS
+    private static RelicModel Relic(JsonElement row) => ModelDb.GetById<RelicModel>(ModelDb.GetId(
+        typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Relic_" + row.GetProperty("id").GetString(), true)!));
+    private static PotionModel Potion(JsonElement row) => ModelDb.GetById<PotionModel>(ModelDb.GetId(
+        typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Potion_" + row.GetProperty("id").GetString(), true)!));
+    private static int FocusAmount(Player player) => player.Creature.Powers
+        .Where(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower").Sum(p => p.Amount);
+    private static (decimal block, int hand, decimal energy, decimal focus) ItemStats(Player player) =>
+        (player.Creature.Block, player.PlayerCombatState!.Hand.Cards.Count, player.PlayerCombatState.Energy, FocusAmount(player));
+    private static void ItemDelta(Player player, (decimal block, int hand, decimal energy, decimal focus) before, JsonElement row)
+    {
+        var effects = row.GetProperty("effects");
+        int Expected(string key) => effects.GetProperty(key).GetInt32();
+        var after = ItemStats(player);
+        Require(after.block - before.block == Expected("block") && after.hand - before.hand == Expected("draw")
+            && after.energy - before.energy == Expected("energy") && after.focus - before.focus == Expected("focus"), "Authored item effect mismatch: " + row.GetProperty("id").GetString());
+    }
+    private static async Task ResetItemStats()
+    {
+        var player = Run.Players.Single();
+        await CardPileCmd.RemoveFromCombat(CardPile.GetCards(player, Piles).ToArray(), skipVisuals: true);
+        foreach (var power in player.Creature.Powers.ToArray()) await PowerCmd.Remove(power);
+        player.Creature.SetCurrentHpInternal(player.Creature.MaxHp);
+        player.Creature.LoseBlockInternal(player.Creature.Block);
+        foreach (var enemy in player.Creature.CombatState!.GetOpponentsOf(player.Creature)) {
+            enemy.SetMaxHpInternal(10000); enemy.SetCurrentHpInternal(10000);
+        }
+        var guard = ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.DefendIronclad>();
+        for (var i = 0; i < 20; i++) await CardPileCmd.Add(player.Creature.CombatState.CreateCard(guard, player), PileType.Draw, skipVisuals: true);
+        await PlayerCmd.GainEnergy(20, player);
+    }
+    private static async Task RelicCase(JsonElement row)
+    {
+        var player = Run.Players.Single(); var canonical = Relic(row);
+        Require(canonical.Icon != null && canonical.Icon.GetWidth() > 0 && canonical.BigIcon != null, "Relic fallback art missing.");
+        Require(!canonical.DynamicDescription.GetFormattedText().Contains('{'), "Unresolved relic text.");
+        var relic = (AuthoredRelic)canonical.ToMutable();
+        if (canonical.Rarity == RelicRarity.Starter) await RelicCmd.Obtain(relic, player);
+        else {
+            var pulled = player.RelicGrabBag.PullFromFront(canonical.Rarity, r => r.Id == canonical.Id, Run);
+            Require(pulled?.Id == canonical.Id, "Relic missing from native grab bag.");
+            relic = (AuthoredRelic)pulled!.ToMutable();
+            if (canonical.Rarity == RelicRarity.Shop) {
+                var entry = new MerchantRelicEntry(relic, player); var gold = player.Gold;
+                await PlayerCmd.GainGold(entry.Cost, player);
+                Require(await entry.OnTryPurchaseWrapper(null) && player.Gold == gold, "Authored relic purchase/price mismatch.");
+            } else Require(await new RelicReward(relic, player).SelectUnsynchronized(), "Authored relic reward refused.");
+        }
+        await Room();
+        Require(relic.LastTriggeredTurn == 1, "Relic did not trigger on the native first turn.");
+        await ResetItemStats();
+        await relic.BeforeCombatStart();
+        var before = ItemStats(player); var context = new BlockingPlayerChoiceContext();
+        await relic.AfterPlayerTurnStart(context, player);
+        ItemDelta(player, before, row);
+        var after = ItemStats(player);
+        await relic.AfterPlayerTurnStart(context, player);
+        Require(ItemStats(player) == after, "Relic applied twice in the same turn.");
+        var restored = (AuthoredRelic)RelicModel.FromSerializable(relic.ToSerializable());
+        Require(restored.Id == relic.Id && restored.LastTriggeredTurn == relic.LastTriggeredTurn, "Relic saved trigger changed.");
+        await RelicCmd.Replace(relic, restored); relic = restored;
+        await relic.AfterPlayerTurnStart(context, player);
+        Require(ItemStats(player) == after, "Relic trigger repeated after save/load.");
+        var turn = player.PlayerCombatState!.TurnNumber;
+        CombatManager.Instance.SetReadyToEndTurn(player, false);
+        await Wait(() => player.PlayerCombatState!.TurnNumber > turn && player.PlayerCombatState.Phase == PlayerTurnPhase.Play
+            && !RunManager.Instance.ActionExecutor.IsRunning, "Relic next turn did not arrive.");
+        await SettleItemHooks();
+        Require(relic.LastTriggeredTurn == (row.GetProperty("trigger").GetString() == "first-turn" ? 1 : player.PlayerCombatState.TurnNumber), "Relic repeated-turn policy differs.");
+        await Room();
+        Require(relic.LastTriggeredTurn == 1, "Relic combat reset failed.");
+        Checks.Add(new { check = "authored-relic", id = row.GetProperty("id").GetString(), acquisition = canonical.Rarity.ToString(),
+            firstTurn = true, duplicateSuppressed = true, savedTrigger = true, nextTurn = true, combatReset = true });
+        await RelicCmd.Remove(relic);
+    }
+    private static async Task PotionCase(JsonElement row)
+    {
+        await Room(); await ResetItemStats();
+        var player = Run.Players.Single(); var canonical = Potion(row);
+        Require(canonical.Image.GetWidth() > 0 && !canonical.DynamicDescription.GetFormattedText().Contains('{'), "Potion fallback art/text missing.");
+        foreach (var old in player.Potions.ToArray()) await PotionCmd.Discard(old);
+        var potion = canonical.ToMutable();
+        var entry = new MerchantPotionEntry(potion, player); var gold = player.Gold;
+        await PlayerCmd.GainGold(entry.Cost, player);
+        Require(await entry.OnTryPurchaseWrapper(null) && player.Gold == gold && player.Potions.Contains(potion), "Potion purchase/price mismatch.");
+        var neighbour = canonical.ToMutable();
+        Require(await new PotionReward(neighbour, player).SelectUnsynchronized(), "Potion reward refused.");
+        while (player.Potions.Count() < player.PotionSlots.Count())
+            Require((await PotionCmd.TryToProcure(canonical.ToMutable(), player)).success, "Empty potion slot refused.");
+        var slots = player.PotionSlots.ToArray();
+        Require(!(await PotionCmd.TryToProcure(canonical.ToMutable(), player)).success
+            && player.PotionSlots.SequenceEqual(slots), "Full belt procurement changed slots.");
+        var saved = PotionModel.FromSerializable(potion.ToSerializable(player.PotionSlots.ToList().IndexOf(potion)));
+        Require(saved.Id == potion.Id && saved.TargetType == potion.TargetType, "Potion save identity changed.");
+        var enemy = player.Creature.CombatState!.GetOpponentsOf(player.Creature).First(e => e.IsAlive);
+        Require(!potion.IsValidTarget(enemy), "Self potion accepted an enemy.");
+        potion.EnqueueManualUse(enemy);
+        await Wait(() => !potion.IsQueued && !RunManager.Instance.ActionExecutor.IsRunning, "Invalid potion use stranded.");
+        Require(player.Potions.Contains(potion), "Rejected target consumed potion.");
+        var before = ItemStats(player); var completed = 0;
+        potion.ExecutionFinished += _ => completed++;
+        var one = new UsePotionAction(potion, player.Creature, true);
+        var two = new UsePotionAction(potion, player.Creature, true);
+        RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(one);
+        RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(two);
+        await Wait(() => completed == 1 && !RunManager.Instance.ActionExecutor.IsRunning, "Potion use did not finish exactly once.");
+        ItemDelta(player, before, row);
+        Require(!player.Potions.Contains(potion) && player.Potions.Contains(neighbour)
+            && player.Potions.Count() == slots.Count(p => p != null) - 1, "Potion use consumed the wrong slot or quantity.");
+        Checks.Add(new { check = "authored-potion", id = row.GetProperty("id").GetString(), purchased = true,
+            rewarded = true, fullBeltPreserved = true, saveRoundTrip = true, invalidTargetPreserved = true, duplicateSuppressed = true, consumed = true });
+    }
+#endif

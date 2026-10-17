@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_items, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -24,6 +24,20 @@ def portrait_png():
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 2, 1, 8, 6, 0, 0, 0))
             + chunk(b'IDAT', zlib.compress(b'\x00\xff\x00\x00\xff\x00\xff\x00\xff')) + chunk(b'IEND', b''))
+
+
+def authored_items():
+    def effects(block=0, draw=0, energy=0, focus=0):
+        return dict(block=block, draw=draw, energy=energy, focus=focus)
+    return dict(schema_version=1, starting_relic='Primer', relics=[
+        dict(id='Primer', name='Primer', rarity='Starter', trigger='first-turn', effects=effects(2, 1, 1, 1)),
+        dict(id='Rhythm', name='Rhythm', rarity='Common', trigger='turn-start', effects=effects(1, 1, 1, 1)),
+        dict(id='PocketGuide', name='Pocket Guide', rarity='Uncommon', trigger='first-turn', effects=effects(3)),
+        dict(id='Reserve', name='Reserve', rarity='Rare', trigger='turn-start', effects=effects(energy=1)),
+        dict(id='LuckyCharm', name='Lucky Charm', rarity='Shop', trigger='first-turn', effects=effects(draw=1))], potions=[
+        dict(id='Reset', name='Reset', rarity='Common', effects=effects(6, 2, 1, 2)),
+        dict(id='Shield', name='Shield', rarity='Uncommon', effects=effects(block=8)),
+        dict(id='Clarity', name='Clarity', rarity='Rare', effects=effects(draw=2, energy=2))])
 
 
 class ToolkitTests(unittest.TestCase):
@@ -119,6 +133,79 @@ class ToolkitTests(unittest.TestCase):
                 self.edit('design/cards.json', lambda c: c[0]['base'].__setitem__(key, value))
                 with self.assertRaises(BuilderError):
                     validate(self.toolkit, self.project)
+
+    def test_item_contract_references_effects_and_skip(self):
+        items = authored_items()
+        for mutate in (
+            lambda x: x['relics'].append(copy.deepcopy(x['relics'][0])),
+            lambda x: x['relics'].append({**x['relics'][2], 'id': 'Pocket_Guide'}),
+            lambda x: x.update(starting_relic='Missing'),
+            lambda x: x['relics'][0].update(rarity='Common'),
+            lambda x: x['potions'][0]['effects'].update(energy=True),
+            lambda x: x['potions'][0]['effects'].update(energy=4),
+            lambda x: x['potions'][0]['effects'].update(heal=1),
+            lambda x: x['relics'][0].update(trigger='cross-run'),
+            lambda x: x['relics'][0]['effects'].update(block=0, draw=0, energy=0, focus=0),
+        ):
+            value = copy.deepcopy(items)
+            mutate(value)
+            atomic(self.project / 'design/items.json', encoded(value))
+            with self.assertRaises(BuilderError):
+                validate(self.toolkit, self.project)
+        atomic(self.project / 'design/items.json', encoded(items))
+        self.edit('character.json', lambda c: c['features'].update(items=False))
+        with self.assertRaisesRegex(BuilderError, 'items disabled'):
+            validate(self.toolkit, self.project)
+        self.edit('character.json', lambda c: c['features'].update(items=True, mechanic=False))
+        with self.assertRaisesRegex(BuilderError, 'focus requires'):
+            validate(self.toolkit, self.project)
+
+    def test_item_ownership_ids_and_fingerprint(self):
+        before = input_hash(self.project)
+        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.assertNotEqual(before, input_hash(self.project))
+        generate(self.toolkit, self.project, freeze=True)
+        ids = read_json(self.project / 'design/model-ids.json')['models']
+        self.assertIn('Relic_Primer', ids)
+        self.assertIn('Potion_Reset', ids)
+        self.edit('design/items.json', lambda i: i['potions'].pop())
+        with self.assertRaisesRegex(BuilderError, 'identity'):
+            generate(self.toolkit, self.project)
+        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        path = self.project / 'src/Generated/Items.cs'
+        path.write_bytes(path.read_bytes() + b'// handwritten\n')
+        self.edit('design/items.json', lambda i: i['potions'][0]['effects'].update(block=7))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'):
+            generate(self.toolkit, self.project)
+
+    def test_optional_item_file_and_owned_output_removal(self):
+        (self.project / 'design/items.json').unlink()
+        generate(self.toolkit, self.project, check=True)
+        self.assertEqual(load_items(self.toolkit, self.project)['relics'], [])
+        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        generate(self.toolkit, self.project)
+        self.assertTrue((self.project / 'src/Generated/Items.cs').exists())
+        atomic(self.project / 'design/items.json', encoded(dict(schema_version=1, relics=[], potions=[])))
+        generate(self.toolkit, self.project)
+        self.assertFalse((self.project / 'src/Generated/Items.cs').exists())
+
+    def test_independent_item_groups_and_literal_names(self):
+        items = authored_items()
+        for group in ('relics', 'potions'):
+            value = copy.deepcopy(items)
+            value[group] = []
+            if group == 'relics':
+                value.pop('starting_relic')
+            else:
+                value['relics'][0]['name'] = 'Literal @ITEMS_JSON@ and "quotes"'
+            atomic(self.project / 'design/items.json', encoded(value))
+            generate(self.toolkit, self.project)
+            generate(self.toolkit, self.project, check=True)
+            character = (self.project / 'src/Generated/Character.cs').read_text()
+            self.assertEqual('ModelDb.RelicPool<AuthoredRelicPool>()' in character, group != 'relics')
+            self.assertEqual('ModelDb.PotionPool<AuthoredPotionPool>()' in character, group != 'potions')
+            if group == 'potions':
+                self.assertIn('@ITEMS_JSON@', (self.project / 'src/Generated/Items.cs').read_text())
 
     def test_generation_preserves_hand_edits_and_saved_ids(self):
         generate(self.toolkit, self.project, freeze=True)
@@ -284,13 +371,17 @@ class ToolkitTests(unittest.TestCase):
             stage(self.toolkit, self.project)
 
     def test_native_evidence_requires_complete_current_coverage(self):
+        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        generate(self.toolkit, self.project)
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
         checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
                    for card in cards for upgrade in (False, True)]
+        checks += [dict(check=label, id=row['id']) for group, label in (('relics', 'authored-relic'), ('potions', 'authored-potion'))
+                   for row in authored_items()[group]]
         receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=list(checks),
                        input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
                        toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
@@ -313,6 +404,10 @@ class ToolkitTests(unittest.TestCase):
         publish()
         with self.assertRaisesRegex(BuilderError, 'portrait'):
             native_evidence(self.toolkit, self.project)
+        receipt['checks'] = [check for check in checks if check.get('check') != 'authored-relic']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'relics'):
+            native_evidence(self.toolkit, self.project)
         receipt['checks'] = checks
         publish()
         self.assertIsNotNone(native_evidence(self.toolkit, self.project))
@@ -323,6 +418,7 @@ class ToolkitTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
         self.add_portrait()
+        atomic(self.project / 'design/items.json', encoded(authored_items()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
@@ -353,6 +449,25 @@ public static partial class ModEntry
             print((self.project / 'private/build.log').read_text())
             raise
         self.assertEqual((self.project / 'src/Extensions/Configure.cs').read_bytes(), extension)
+        # Compile the other probe preprocessor branch without creating a game copy.
+        probe = (self.toolkit / 'builder/templates/NativeProbe.cs.txt').read_text().replace('@NAMESPACE@', 'TestHero')
+        probe = probe.replace('@ITEM_PROBE@', (self.toolkit / 'builder/templates/NativeItems.cs.txt').read_text())
+        atomic(self.project / 'private/NativeProbe.cs', probe.encode())
+        run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
+             '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
+             '-p:BuilderNativeTests=true', '-p:BuilderProbeSource=' + str(self.project / 'private/NativeProbe.cs')], self.project)
+
+    @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
+    def test_native_compile_items_without_focus_or_cards(self):
+        self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
+        atomic(self.project / 'design/cards.json', encoded([]))
+        items = authored_items()
+        for row in items['relics'] + items['potions']:
+            row['effects']['focus'] = 0
+        atomic(self.project / 'design/items.json', encoded(items))
+        generate(self.toolkit, self.project)
+        build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
+        self.assertNotIn('FocusPower', (self.project / 'src/Generated/Items.cs').read_text())
 
 
 if __name__ == '__main__':

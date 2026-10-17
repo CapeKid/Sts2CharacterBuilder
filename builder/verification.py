@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_items, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -99,7 +99,7 @@ def native_evidence(toolkit, root):
             or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
         raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
     labels = {check.get('check') for check in receipt.get('checks', [])}
-    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume'}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools'}
     played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
@@ -110,6 +110,12 @@ def native_evidence(toolkit, root):
                          for card in cards for upgraded in (False, True)}
     if set(portraits) != expected_portraits or len(portraits) != len(expected_portraits):
         raise BuilderError('Native evidence does not cover every generated portrait and upgrade')
+    items = load_items(toolkit, root, config)
+    for group, label in (('relics', 'authored-relic'), ('potions', 'authored-potion')):
+        actual = [check.get('id') for check in receipt.get('checks', []) if check.get('check') == label]
+        expected_items = {row['id'] for row in items[group]}
+        if set(actual) != expected_items or len(actual) != len(expected_items):
+            raise BuilderError(f'Native evidence does not cover every authored {group}')
     return receipt
 
 

@@ -9,7 +9,7 @@ import subprocess
 import time
 import uuid
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_items, read_json, validate
 from .project import atomic, generate
 from .verification import build, pin_check, source_hash
 
@@ -156,6 +156,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
         raise BuilderError('Lab BaseLib manifest must match the pinned dependency version')
     release = build(toolkit, root, data_candidates[0])
     probe = (toolkit / 'builder/templates/NativeProbe.cs.txt').read_text(encoding='utf-8').replace('@NAMESPACE@', config['namespace'])
+    probe = probe.replace('@ITEM_PROBE@', (toolkit / 'builder/templates/NativeItems.cs.txt').read_text(encoding='utf-8'))
     probe_path = contained(root, '.builder/NativeProbe.cs')
     atomic(probe_path, probe.encode())
     test_output = contained(root, 'build/native-tests')
@@ -175,10 +176,13 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
         relative = 'game/' + data_candidates[0].name + '/' + name
         if inventory.get(relative) != expected:
             raise BuilderError('Owned game changed during preparation; create a new lab')
+    items = load_items(toolkit, root, config)
     request = dict(token=token, profile_path=str(profile), test_dll_sha256=digest(dll),
                    game_dll_sha256=release['references']['sts2.dll'], baselib_sha256=file_hash(baselib / 'lib/net9.0/BaseLib.dll'),
                    input_sha256=input_hash(root), cards=cards,
-                   focus_starter=config['features']['items'] and config['features']['mechanic'])
+                   items=items,
+                   focus_starter=config['features']['items'] and config['features']['mechanic'] and
+                                 'starting_relic' not in items)
     atomic(lab / 'request.json', encoded(request))
     manifest = dict(schema_version=1, id=lab_id, mod_id=config['id'], token=token, profile_path=str(profile),
                     game_source=str(game), workshop=str(workshop), workshop_catalog=catalog,

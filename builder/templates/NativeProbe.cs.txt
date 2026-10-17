@@ -11,6 +11,9 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Merchant;
+using MegaCrit.Sts2.Core.Entities.Relics;
+using MegaCrit.Sts2.Core.Factories;
+using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Encounters;
@@ -80,6 +83,11 @@ internal static class NativeProbe
         manager.SettingsSave.Fullscreen = false;
         manager.SettingsSave.WindowSize = new(1280, 800);
         manager.SettingsSave.ModSettings = settings.ModSettings;
+#if BUILDER_AUTHORED_ITEMS
+        new Harmony(typeof(ModEntry).Namespace + ".builder-native-items").Patch(
+            AccessTools.Method(typeof(AuthoredRelic), nameof(AuthoredRelic.AfterPlayerTurnStart)),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveItemHook)));
+#endif
         Tree.ProcessFrame += Begin;
         GD.Print("Character builder isolated native probe ready; Steam Cloud save backend replaced.");
     }
@@ -125,6 +133,9 @@ internal static class NativeProbe
             }).ToArray();
             Progress("start-run");
             await NGame.Instance.StartNewSingleplayerRun(character, true, ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "CHARACTER-BUILDER-NATIVE-FIXTURE", GameMode.Standard, 0);
+            SaveManager.Instance.SetFtuesEnabled(false);
+            foreach (var key in new[] { "accept_tutorials_ftue", "map_select_ftue", "combat_rules_ftue", "shuffle_ftue" })
+                SaveManager.Instance.MarkFtueAsComplete(key);
             var player = Run.Players.Single();
             Require(player.Deck.Cards.Select(c => c.Id).OrderBy(x => x.ToString()).SequenceEqual(character.StartingDeck.Select(c => c.Id).OrderBy(x => x.ToString())), "Starting deck differs.");
             Require(player.Relics.Select(r => r.Id).SequenceEqual(character.StartingRelics.Select(r => r.Id)), "Starting relics differ.");
@@ -133,6 +144,8 @@ internal static class NativeProbe
             var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
             if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            Progress("items");
+            await Items();
             foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
                 var key = row.GetProperty("id").GetString()!;
                 Progress("card:" + key + (upgraded ? "+" : ""));
@@ -144,6 +157,7 @@ internal static class NativeProbe
             Progress("rewards-shop");
             try { RewardsAndShop(); } catch (Exception error) { Failures.Add("rewards-shop: " + error); }
             Progress("save-resume");
+            await ItemsForSave();
             await SaveResume();
         } catch (Exception error) { Failures.Add(error.ToString()); }
         Write("result.json", new {
@@ -162,6 +176,7 @@ internal static class NativeProbe
         await RunManager.Instance.EnterRoomDebug(RoomType.Monster, model: ModelDb.Encounter<NibbitsNormal>().ToMutable(), showTransition: false);
         RunManager.Instance.ActionExecutor.Unpause();
         await PlayPhase();
+        await SettleItemHooks();
     }
 
     private static async Task<object> Card(JsonElement row, bool upgraded)
@@ -278,6 +293,7 @@ internal static class NativeProbe
         if (first.IsUpgradable) CardCmd.Upgrade(first);
         var ids = Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).ToArray();
         var relicIds = Run.Players.Single().Relics.Select(r => r.Id.ToString()).ToArray();
+        var potionIds = Run.Players.Single().PotionSlots.Select(p => p?.Id.ToString()).ToArray();
         // Save a normal noncombat room; mid-combat persistence is not a native promise.
         await RunManager.Instance.EnterRoomDebug(RoomType.RestSite, showTransition: false);
         await SaveManager.Instance.SaveRun(null);
@@ -290,10 +306,13 @@ internal static class NativeProbe
         Require(Run.Players.Single().Character.Id == ModelDb.Character<Character>().Id, "Character identity changed on resume.");
         Require(Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).SequenceEqual(ids), "Deck identities/upgrades changed on resume.");
         Require(Run.Players.Single().Relics.Select(r => r.Id.ToString()).SequenceEqual(relicIds), "Relic identities changed on resume.");
+        Require(Run.Players.Single().PotionSlots.Select(p => p?.Id.ToString()).SequenceEqual(potionIds), "Potion slots/identities changed on resume.");
         await Room();
         var focus = Run.Players.Single().Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
         if (Request.GetProperty("focus_starter").GetBoolean()) Require(focus?.Amount == 1, "Resource failed to reset at the next combat.");
-        Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids, relics = relicIds, nextCombatFocus = focus?.Amount ?? 0 });
+        Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids, relics = relicIds, potions = potionIds, nextCombatFocus = focus?.Amount ?? 0 });
     }
+
+@ITEM_PROBE@
 }
 #endif

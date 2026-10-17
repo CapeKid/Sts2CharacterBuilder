@@ -4,6 +4,8 @@ The generator supports a small numeric effect vocabulary. Keep bespoke implement
 
 Per-card SVG/PNG portraits use the optional data-driven `portrait` field; see [card art](ART.md). No extension override is needed for that supported path. `ModEntry.Texture` loads only SVG/PNG assets declared in the manifest, using paths relative to `assets/` (for example `cards/strike.png`). Other presentation behaviors still require project-owned code.
 
+Supported starting/drop relics and combat potions use optional `design/items.json`; see [items](ITEMS.md). Use extensions for effects, targets, art and timing outside that numeric contract.
+
 The generated `Character`, `StarterRelic`, `FocusPower` and `ModEntry` are partial classes. Add presentation/lifecycle overrides in another part of the same class when the generator does not already define that member. For members already generated, use the hooks below or a separately implemented model. Do not duplicate an override in a partial class.
 
 For example, in `src/Extensions/Configure.cs`, using the project's actual namespace:
