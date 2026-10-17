@@ -110,6 +110,31 @@ def load_items(toolkit, root, config=None):
     return items
 
 
+def load_events(toolkit, root, config=None):
+    path = contained(root, 'design/events.json')
+    events = read_json(path) if path.exists() else []
+    check_schema(events, read_json(toolkit / 'builder/events.schema.json'), '$events')
+    if config is None:
+        config = read_json(contained(root, 'character.json'))
+    if events and not config['features']['events']:
+        raise BuilderError('Custom events disabled: clear design/events.json')
+    def unique(rows, label):
+        ids = [r['id'].replace('_', '').casefold() for r in rows]
+        if len(ids) != len(set(ids)):
+            raise BuilderError(f'Duplicate {label} IDs (including case/underscore variants)')
+    unique(events, 'event')
+    for event in events:
+        if len(event['acts']) != len(set(event['acts'])):
+            raise BuilderError(f'{event["id"]}: duplicate act eligibility')
+        unique(event['choices'], f'{event["id"]} choice')
+        for choice in event['choices']:
+            if choice['id'].replace('_', '').casefold() == 'leave':
+                raise BuilderError('Leave is reserved for the always-available exit')
+            if not any(choice['cost'].values()) and not any(choice['reward'].values()):
+                raise BuilderError(f'{event["id"]}/{choice["id"]}: choice needs a supported cost or reward')
+    return events
+
+
 def validate(toolkit, root):
     config = read_json(contained(root, 'character.json'))
     check_schema(config, read_json(toolkit / 'builder/character.schema.json'))
@@ -125,6 +150,7 @@ def validate(toolkit, root):
     if lock.get('baselib') != '3.4.7' or lock.get('target_framework') != 'net9.0':
         raise BuilderError('Dependency upgrade requires a reviewed toolkit update')
     load_items(toolkit, root, config)
+    load_events(toolkit, root, config)
     cards = read_json(contained(root, 'design/cards.json'))
     check_schema(cards, read_json(toolkit / 'builder/cards.schema.json'), '$cards')
     ids = [c['id'] for c in cards]
@@ -230,9 +256,10 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    items = contained(root, 'design/items.json')
-    if items.exists():
-        files.append(items)
+    for relative in ('design/items.json', 'design/events.json'):
+        optional = contained(root, relative)
+        if optional.exists():
+            files.append(optional)
     files += [contained(root, a['path']) for a in read_json(contained(root, 'assets/manifest.json'))]
     files += sorted((Path(root) / 'src').rglob('*.cs'))
     files += [contained(root, 'Character.csproj'), contained(root, 'design/model-ids.json'), contained(root, 'design/generated-files.json')]

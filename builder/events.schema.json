@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "array",
+  "maxItems": 30,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id",
+      "name",
+      "body",
+      "acts",
+      "choices"
+    ],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      },
+      "body": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 3000
+      },
+      "acts": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 3,
+        "items": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        }
+      },
+      "choices": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name",
+            "result",
+            "cost",
+            "reward"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "result": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            "cost": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "gold",
+                "hp"
+              ],
+              "properties": {
+                "gold": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 300
+                },
+                "hp": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 30
+                }
+              }
+            },
+            "reward": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "gold",
+                "heal"
+              ],
+              "properties": {
+                "gold": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 300
+                },
+                "heal": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 50
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

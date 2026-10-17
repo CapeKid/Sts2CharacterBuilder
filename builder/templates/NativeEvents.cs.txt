@@ -1,0 +1,189 @@
+#if BUILDER_AUTHORED_EVENTS
+    private static bool ForceEventRoll;
+    private static bool EventRoomRoll(MegaCrit.Sts2.Core.Map.MapPointType __0, ref RoomType __result)
+    {
+        if (!ForceEventRoll || __0 != MegaCrit.Sts2.Core.Map.MapPointType.Unknown) return true;
+        __result = RoomType.Event;
+        return false;
+    }
+#endif
+    private static async Task Events()
+    {
+#if BUILDER_AUTHORED_EVENTS
+        var player = Run.Players.Single();
+        var acts = ModelDb.ActsByIndex.Select(a => a.First()).ToArray();
+        var foreign = RunState.CreateForTest([Player.CreateForNewRun(ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>(), player.UnlockState, 101)],
+            acts, [], GameMode.Standard, 0, "BUILDER-EVENT-FOREIGN");
+        var coop = RunState.CreateForTest([Player.CreateForNewRun(ModelDb.Character<Character>(), player.UnlockState, 102),
+            Player.CreateForNewRun(ModelDb.Character<Character>(), player.UnlockState, 103)], acts, [], GameMode.Standard, 0, "BUILDER-EVENT-COOP");
+        foreach (var row in Request.GetProperty("events").EnumerateArray()) {
+            var canonical = Event(row);
+            Require(canonical.IsAllowed(Run) && !canonical.IsAllowed(foreign) && !canonical.IsAllowed(coop), "Event character/solo eligibility mismatch.");
+            foreach (var (variants, index) in ModelDb.ActsByIndex.Select((variants, index) => (variants, index)))
+                foreach (var act in variants) Require(act.AllEvents.Any(e => e.Id == canonical.Id)
+                    == row.GetProperty("acts").EnumerateArray().Any(a => a.GetInt32() == index + 1), "Event act registration mismatch.");
+            foreach (var choice in row.GetProperty("choices").EnumerateArray()) {
+                Progress("event:" + row.GetProperty("id").GetString() + "/" + choice.GetProperty("id").GetString());
+                await EventChoice(row, choice);
+            }
+            await EventLeave(row);
+            await EventResume(row);
+        }
+        Checks.Add(new { check = "event-pools", characterOnly = true, soloOnly = true, actsVerified = true });
+#else
+        await Task.CompletedTask;
+        Checks.Add(new { check = "event-pools", skipped = true, reason = "No authored events" });
+#endif
+    }
+
+#if BUILDER_AUTHORED_EVENTS
+    private static EventModel Event(JsonElement row) => ModelDb.GetById<EventModel>(ModelDb.GetId(
+        typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Event_" + row.GetProperty("id").GetString(), true)!));
+    private static IEnumerable<Godot.Node> EventNodes(Godot.Node node)
+    {
+        yield return node;
+        foreach (var child in node.GetChildren()) foreach (var descendant in EventNodes(child)) yield return descendant;
+    }
+    private static MegaCrit.Sts2.Core.Nodes.Events.NEventOptionButton EventButton(MegaCrit.Sts2.Core.Events.EventOption option) =>
+        EventNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Events.NEventOptionButton>()
+            .Single(b => b.IsVisibleInTree() && b.Option == option);
+    private static MegaCrit.Sts2.Core.Events.EventOption EventOption(EventModel model, string choice) =>
+        model.CurrentOptions.Single(o => o.TextKey.EndsWith(".options." + choice, StringComparison.Ordinal));
+    private static async Task<EventModel> EventRoom(JsonElement row)
+    {
+        await RunManager.Instance.EnterRoomDebug(RoomType.Event, model: Event(row), showTransition: false);
+        return await EventReady();
+    }
+    private static async Task<EventModel> EventReady()
+    {
+        await Wait(() => Run.CurrentRoom is MegaCrit.Sts2.Core.Rooms.EventRoom room && room.LocalMutableEvent?.CurrentOptions.Count > 0,
+            "Authored event options did not arrive.");
+        var model = ((MegaCrit.Sts2.Core.Rooms.EventRoom)Run.CurrentRoom!).LocalMutableEvent;
+        await Wait(() => EventNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Events.NEventOptionButton>()
+            .Count(b => b.IsVisibleInTree() && model.CurrentOptions.Contains(b.Option)) == model.CurrentOptions.Count, "Event buttons missing.");
+        Require(model.Title.Exists() && model.InitialDescription.Exists() && !string.IsNullOrWhiteSpace(model.InitialDescription.GetFormattedText()), "Event localization missing.");
+        var portrait = model.CreateInitialPortrait();
+        Require(portrait != null && portrait.GetWidth() > 0, "Native event fallback portrait missing.");
+        return model;
+    }
+    private static async Task EventStats(int gold, int hp)
+    {
+        var player = Run.Players.Single();
+        player.Creature.SetMaxHpInternal(200); player.Creature.SetCurrentHpInternal(hp);
+        await PlayerCmd.SetGold(gold, player);
+    }
+    private static (decimal gold, decimal hp) EventStats() => (Run.Players.Single().Gold, Run.Players.Single().Creature.CurrentHp);
+    private static async Task ClickEvent(EventModel model, string choice)
+    {
+        var option = EventOption(model, choice);
+        Require(!option.IsLocked && EventButton(option).IsEnabled, "Affordable event button disabled.");
+        await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(EventButton(option));
+        await Wait(() => model.IsFinished, "Event choice did not finish.");
+        await RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks();
+    }
+    private static async Task EventChoice(JsonElement row, JsonElement choice)
+    {
+        var id = choice.GetProperty("id").GetString()!;
+        var gold = choice.GetProperty("cost").GetProperty("gold").GetInt32();
+        var hp = choice.GetProperty("cost").GetProperty("hp").GetInt32();
+        if (gold > 0) {
+            await EventStats(gold - 1, 100); var locked = await EventRoom(row);
+            await LockedEvent(locked, id);
+        }
+        if (hp > 0) {
+            await EventStats(gold, hp); var locked = await EventRoom(row);
+            await LockedEvent(locked, id);
+        }
+        if (gold > 0 || hp > 0) {
+            await EventStats(gold, 100); var stale = await EventRoom(row);
+            var option = EventOption(stale, id);
+            await EventStats(gold > 0 ? gold - 1 : gold, gold > 0 ? 100 : hp);
+            var before = EventStats();
+            await option.Chosen();
+            Require(EventStats() == before && !stale.IsFinished && EventOption(stale, id).IsLocked, "Stale affordability check charged resources.");
+        }
+        await EventStats(gold, 100);
+        var model = await EventRoom(row);
+        var selected = EventOption(model, id); var siblings = model.CurrentOptions.Where(o => !o.IsLocked).ToArray();
+        var initial = EventStats();
+        Require(selected.Title.Exists() && selected.Description.Exists(), "Event choice localization missing.");
+        await ClickEvent(model, id);
+        var expectedGold = initial.gold - gold + choice.GetProperty("reward").GetProperty("gold").GetInt32();
+        var expectedHp = initial.hp - hp + choice.GetProperty("reward").GetProperty("heal").GetInt32();
+        Require(EventStats() == (expectedGold, expectedHp), "Event cost/reward differs.");
+        Require(model.Description.GetFormattedText() == choice.GetProperty("result").GetString(), "Event result text differs.");
+        await Task.WhenAll(siblings.Select(option => option.Chosen()));
+        Require(EventStats() == (expectedGold, expectedHp), "Event paid out twice through old/sibling options.");
+        Checks.Add(new { check = "authored-event", id = row.GetProperty("id").GetString(), choice = id,
+            thresholds = true, staleGuard = true, nativeButton = true, exactEffects = true, duplicateSuppressed = true });
+    }
+    private static async Task LockedEvent(EventModel model, string choice)
+    {
+        var option = EventOption(model, choice); var before = EventStats();
+        Require(option.IsLocked, "Unaffordable event choice was not locked: " + choice + " / " + before);
+        // Native locked options remain enabled for hover text; OnRelease rejects them.
+        await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(EventButton(option));
+        await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+        Require(!option.WasChosen && !model.IsFinished && EventStats() == before, "Locked event choice executed or charged resources.");
+    }
+    private static async Task EventLeave(JsonElement row)
+    {
+        await EventStats(0, 1); var model = await EventRoom(row); var before = EventStats();
+        await ClickEvent(model, "Leave");
+        Require(EventStats() == before, "Leave changed event resources.");
+        Checks.Add(new { check = "event-leave", id = row.GetProperty("id").GetString(), alwaysAvailable = true, unchanged = true });
+    }
+    private static async Task ReloadEventCheckpoint()
+    {
+        await NGame.Instance!.ReturnToMainMenu();
+        var save = SaveManager.Instance.LoadRunSave();
+        Require(save.Success && save.SaveData != null, "Event checkpoint unreadable.");
+        var restored = RunState.FromSerializable(save.SaveData!);
+        await RunManager.Instance.SetUpSavedSingleplayer(restored, save.SaveData!);
+        await NGame.Instance!.LoadRun(restored, save.SaveData!.PreFinishedRoom);
+    }
+    private static async Task EventResume(JsonElement row)
+    {
+        var choice = row.GetProperty("choices")[0]; var id = choice.GetProperty("id").GetString()!;
+        // Each checkpoint control gets its own map/run, regardless of library size.
+        await NGame.Instance!.ReturnToMainMenu();
+        await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
+            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-EVENT-CHECKPOINT-" + row.GetProperty("id").GetString(), GameMode.Standard, 0);
+        Run.ExtraFields.StartedWithNeow = true;
+        await EventStats(300, 100);
+        // Debug rooms do not update the saved map position. Select a known event
+        // in this disposable room set and enter through the native map pipeline.
+        var rooms = (MegaCrit.Sts2.Core.Rooms.RoomSet)AccessTools.Field(typeof(ActModel), "_rooms").GetValue(Run.Act)!;
+        AccessTools.Field(rooms.GetType(), "events").SetValue(rooms, new List<EventModel> { Event(row) });
+        AccessTools.Field(rooms.GetType(), "eventsVisited").SetValue(rooms, 0);
+        ForceEventRoll = true;
+        try {
+            var point = Run.Map.StartingMapPoint;
+            point.PointType = MegaCrit.Sts2.Core.Map.MapPointType.Unknown;
+            Progress("event-checkpoint:" + row.GetProperty("id").GetString() + ":enter");
+            await RunManager.Instance.EnterMapCoord(point.coord);
+            await EventReady();
+            var checkpoint = EventStats();
+            await ReloadEventCheckpoint();
+            var model = await EventReady();
+            Require(EventStats() == checkpoint, "Initial event checkpoint changed resources: " + checkpoint + " / " + EventStats());
+            Require(model.Id == Event(row).Id && !EventOption(model, id).IsLocked, "Resumed event identity/options differ.");
+            await ClickEvent(model, id);
+            var outcome = EventStats();
+            // Interrupt before leaving; the native checkpoint must restore the pre-choice state.
+            await ReloadEventCheckpoint();
+            model = await EventReady();
+            Require(EventStats() == checkpoint, "Interrupted visit kept rewards from an uncommitted choice.");
+            await ClickEvent(model, id);
+            Require(EventStats() == outcome, "Replayed checkpoint duplicated event rewards.");
+            var next = Run.CurrentMapPoint!.Children.First();
+            next.PointType = MegaCrit.Sts2.Core.Map.MapPointType.RestSite;
+            await RunManager.Instance.EnterMapCoord(next.coord);
+            await ReloadEventCheckpoint();
+            await Wait(() => Run.CurrentRoom != null, "Saved next room did not arrive.");
+            Require(EventStats() == outcome && Run.CurrentRoom is not MegaCrit.Sts2.Core.Rooms.EventRoom, "Completed visit did not persist after leaving.");
+            Checks.Add(new { check = "event-resume", id = row.GetProperty("id").GetString(), initialCheckpoint = true,
+                interruptedRollback = true, replayNoDuplicate = true, completedPersistence = true });
+        } finally { ForceEventRoll = false; }
+    }
+#endif

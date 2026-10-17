@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_items, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_events, load_items, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -38,6 +38,16 @@ def authored_items():
         dict(id='Reset', name='Reset', rarity='Common', effects=effects(6, 2, 1, 2)),
         dict(id='Shield', name='Shield', rarity='Uncommon', effects=effects(block=8)),
         dict(id='Clarity', name='Clarity', rarity='Rare', effects=effects(draw=2, energy=2))])
+
+
+def authored_events():
+    def choice(key, gold=0, hp=0, gain=0, heal=0):
+        return dict(id=key, name=key, result='The meeting is over.', cost=dict(gold=gold, hp=hp), reward=dict(gold=gain, heal=heal))
+    return [dict(id='QuietCamp', name='A Quiet Camp', body='A traveler offers a moment of rest.', acts=[1, 2, 3],
+                 choices=[choice('Rest', gold=30, heal=12), choice('Trade', hp=5, gain=25),
+                          choice('Exchange', gold=10, hp=3, gain=15, heal=4)]),
+            dict(id='LastLesson', name='A Last Lesson', body='A final lesson awaits.', acts=[3],
+                 choices=[choice('Listen', heal=8)])]
 
 
 class ToolkitTests(unittest.TestCase):
@@ -207,6 +217,61 @@ class ToolkitTests(unittest.TestCase):
             if group == 'potions':
                 self.assertIn('@ITEMS_JSON@', (self.project / 'src/Generated/Items.cs').read_text())
 
+    def test_event_contract_and_disabled_features(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        for mutate in (
+            lambda e: e.append(copy.deepcopy(e[0])),
+            lambda e: e[0]['acts'].append(1),
+            lambda e: e[0]['acts'].append(4),
+            lambda e: e[0]['choices'].append(copy.deepcopy(e[0]['choices'][0])),
+            lambda e: e[0]['choices'][0].update(id='Leave'),
+            lambda e: e[0]['choices'][0]['cost'].update(hp=True),
+            lambda e: e[0]['choices'][0]['reward'].update(heal=51),
+            lambda e: e[0]['choices'][0]['reward'].update(inheritance=1),
+            lambda e: e[0]['choices'][0].update(cost=dict(hp=0, gold=0), reward=dict(heal=0, gold=0)),
+        ):
+            events = authored_events()
+            mutate(events)
+            atomic(self.project / 'design/events.json', encoded(events))
+            with self.assertRaises(BuilderError):
+                validate(self.toolkit, self.project)
+        atomic(self.project / 'design/events.json', encoded(authored_events()))
+        self.edit('character.json', lambda c: c['features'].update(events=False))
+        with self.assertRaisesRegex(BuilderError, 'events disabled'):
+            validate(self.toolkit, self.project)
+
+    def test_event_ownership_ids_and_fingerprint(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        before = input_hash(self.project)
+        events = authored_events()
+        events[0]['body'] = 'Literal @EVENTS_JSON@ and "quotes"'
+        atomic(self.project / 'design/events.json', encoded(events))
+        self.assertNotEqual(before, input_hash(self.project))
+        generate(self.toolkit, self.project, freeze=True)
+        self.assertIn('Event_QuietCamp', read_json(self.project / 'design/model-ids.json')['models'])
+        self.assertIn('@EVENTS_JSON@', (self.project / 'src/Generated/Events.cs').read_text())
+        self.edit('design/events.json', lambda e: e.pop())
+        with self.assertRaisesRegex(BuilderError, 'identity'):
+            generate(self.toolkit, self.project)
+        atomic(self.project / 'design/events.json', encoded(events))
+        path = self.project / 'src/Generated/Events.cs'
+        path.write_bytes(path.read_bytes() + b'// handwritten\n')
+        self.edit('design/events.json', lambda e: e[0].update(name='Changed'))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'):
+            generate(self.toolkit, self.project)
+
+    def test_optional_event_file_and_output_removal(self):
+        (self.project / 'design/events.json').unlink()
+        self.assertEqual(load_events(self.toolkit, self.project), [])
+        generate(self.toolkit, self.project, check=True)
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        atomic(self.project / 'design/events.json', encoded(authored_events()))
+        generate(self.toolkit, self.project)
+        self.assertTrue((self.project / 'src/Generated/Events.cs').exists())
+        atomic(self.project / 'design/events.json', encoded([]))
+        generate(self.toolkit, self.project)
+        self.assertFalse((self.project / 'src/Generated/Events.cs').exists())
+
     def test_generation_preserves_hand_edits_and_saved_ids(self):
         generate(self.toolkit, self.project, freeze=True)
         path = self.project / 'src/Generated/Character.cs'
@@ -372,16 +437,21 @@ class ToolkitTests(unittest.TestCase):
 
     def test_native_evidence_requires_complete_current_coverage(self):
         atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        atomic(self.project / 'design/events.json', encoded(authored_events()))
         generate(self.toolkit, self.project)
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
         checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
                    for card in cards for upgrade in (False, True)]
         checks += [dict(check=label, id=row['id']) for group, label in (('relics', 'authored-relic'), ('potions', 'authored-potion'))
                    for row in authored_items()[group]]
+        checks += [dict(check='authored-event', id=event['id'], choice=choice['id'])
+                   for event in authored_events() for choice in event['choices']]
+        checks += [dict(check=label, id=event['id']) for event in authored_events() for label in ('event-leave', 'event-resume')]
         receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=list(checks),
                        input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
                        toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
@@ -408,6 +478,14 @@ class ToolkitTests(unittest.TestCase):
         publish()
         with self.assertRaisesRegex(BuilderError, 'relics'):
             native_evidence(self.toolkit, self.project)
+        receipt['checks'] = [check for check in checks if check.get('check') != 'event-resume']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'event-resume'):
+            native_evidence(self.toolkit, self.project)
+        receipt['checks'] = [check for check in checks if not (check.get('check') == 'authored-event' and check.get('choice') == 'Trade')]
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'authored-event'):
+            native_evidence(self.toolkit, self.project)
         receipt['checks'] = checks
         publish()
         self.assertIsNotNone(native_evidence(self.toolkit, self.project))
@@ -419,6 +497,8 @@ class ToolkitTests(unittest.TestCase):
     def test_native_compile(self):
         self.add_portrait()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        atomic(self.project / 'design/events.json', encoded(authored_events()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
@@ -452,6 +532,7 @@ public static partial class ModEntry
         # Compile the other probe preprocessor branch without creating a game copy.
         probe = (self.toolkit / 'builder/templates/NativeProbe.cs.txt').read_text().replace('@NAMESPACE@', 'TestHero')
         probe = probe.replace('@ITEM_PROBE@', (self.toolkit / 'builder/templates/NativeItems.cs.txt').read_text())
+        probe = probe.replace('@EVENT_PROBE@', (self.toolkit / 'builder/templates/NativeEvents.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -460,6 +541,8 @@ public static partial class ModEntry
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        atomic(self.project / 'design/events.json', encoded(authored_events()))
         atomic(self.project / 'design/cards.json', encoded([]))
         items = authored_items()
         for row in items['relics'] + items['potions']:

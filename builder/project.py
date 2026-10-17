@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .contracts import BuilderError, contained, digest, encoded, load_items, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, load_events, load_items, read_json, validate
 
 STEPS = ['setup', 'mechanics', 'cards', 'art', 'items', 'events', 'dialogue', 'sprites',
          'presentation', 'audio', 'verify', 'balance', 'publish']
@@ -108,6 +108,7 @@ def bootstrap(toolkit, target, args):
                reference_commit='f46c3eaf8c76c43c6a70d0713f855760b96fec19')))
         atomic(temporary / 'design/cards.json', encoded(starter_cards()))
         atomic(temporary / 'design/items.json', encoded(dict(schema_version=1, relics=[], potions=[])))
+        atomic(temporary / 'design/events.json', encoded([]))
         manifest = []
         for kind in ('icon', 'card'):
             data = placeholder(kind, config['color'])
@@ -134,6 +135,7 @@ def bootstrap(toolkit, target, args):
 def generated(toolkit, root):
     config, cards, assets, lock = validate(toolkit, root)
     items = load_items(toolkit, root, config)
+    events = load_events(toolkit, root, config)
     quote = lambda v: __import__('json').dumps(v, ensure_ascii=True)
     custom = config['features']['cards']
     mechanic = config['features']['mechanic']
@@ -189,6 +191,11 @@ def generated(toolkit, root):
                                  [f'public sealed class Potion_{p["id"]} : AuthoredPotion {{ }}' for p in items['potions']]))
         template = (toolkit / 'builder/templates/Items.cs.txt').read_text()
         outputs['src/Generated/Items.cs'] = re.sub(r'@([A-Z_]+)@', lambda match: item_replacements[match[1]], template).encode()
+    if events:
+        replacements = dict(NAMESPACE=config['namespace'], EVENTS_JSON=quote(json.dumps(events, ensure_ascii=True)),
+            EVENT_TYPES='\n'.join(f'public sealed class Event_{e["id"]} : AuthoredEvent {{ }}' for e in events))
+        template = (toolkit / 'builder/templates/Events.cs.txt').read_text()
+        outputs['src/Generated/Events.cs'] = re.sub(r'@([A-Z_]+)@', lambda match: replacements[match[1]], template).encode()
     return outputs
 
 
@@ -199,12 +206,14 @@ def generate(toolkit, root, check=False, freeze=False):
     identities = contained(root, 'design/model-ids.json')
     config, cards, _, _ = validate(toolkit, root)
     items = load_items(toolkit, root, config)
+    events = load_events(toolkit, root, config)
     previous = read_json(identities) if identities.exists() else None
     frozen = freeze or bool(previous and previous.get('frozen'))
     ids = dict(namespace=config['namespace'], mod_id=config['id'], frozen=frozen, models=['Character'] +
                (['StarterRelic'] if config['features']['items'] and config['features']['mechanic'] else []) +
                (['FocusPower'] if config['features']['mechanic'] else []) + ['Card_' + c['id'] for c in cards] +
-               ['Relic_' + r['id'] for r in items['relics']] + ['Potion_' + p['id'] for p in items['potions']])
+               ['Relic_' + r['id'] for r in items['relics']] + ['Potion_' + p['id'] for p in items['potions']] +
+               ['Event_' + e['id'] for e in events])
     if previous and previous.get('frozen'):
         if previous['namespace'] != ids['namespace'] or previous['mod_id'] != ids['mod_id'] or not set(previous['models']) <= set(ids['models']):
             raise BuilderError('Saved model identity removed or renamed; an explicit migration is required')

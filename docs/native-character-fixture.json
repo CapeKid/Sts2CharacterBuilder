@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "5f63f3dec50275b33c7f14dbda505e849cd5e36490493a22bcc185d75f5233b2",
-  "source_sha256": "15545357bd9fd3ec8b77fd49781d64b4eb81d5d1b3d16e03513d989f13b96eda",
-  "release_dll_sha256": "9df3530ebe3e7182b5c3ac149f2020ff4c0d5ceb6aa9def67e0093c7fc7b36b8",
-  "test_dll_sha256": "a0808c98025ab25d13700b565552ba8e998e5b376bdb99156e59414f4836705a",
+  "input_sha256": "d95587b53aa57e2e3f35b14cf76d3a18d454a2c054d170d7bbc9746aa2d3894a",
+  "source_sha256": "48983e46e59bd1ac201bcdc2d5925e063ce931b797eeec6251c7c3248cc78caf",
+  "release_dll_sha256": "71bb5fe08ddff50e2732f4c375e831175610c51d542779b2cd32c37f542b9a17",
+  "test_dll_sha256": "a3284cd15a97a09592d5717e3ddaa244d9020d9e45cebff737c23367b875cd7e",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "ee6acb112b5f0984a874048beae9624be073f5d16c0b6cdc223d7eaf913d5d48",
+  "probe_source_sha256": "9d0a195c1c98af0353a2a950e7a773e5a194c751f5d3c7d8a3be0ed00882de6b",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -23,8 +23,8 @@
     "Bespoke extension effects are outside the numeric fixtures",
     "Campaign balance and Workshop delivery unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless, eight bootstrap cards plus fixture-only Recharge/Sweep; PNG/SVG/fallback portraits; five authored relics (all supported rarities) and three potions (all supported rarities)",
-  "fixture_toolkit_snapshot": "85e2e25a6305b92eac563267d80898f883d4399d",
+  "fixture": "NativeFixture, Windows/headless, eight bootstrap cards plus Recharge/Sweep; PNG/SVG/fallback portraits; five authored relics, three potions; two solo events with four choices and native map checkpoint controls",
+  "fixture_toolkit_snapshot": "d77e7f07b8bddc6c752284cefdc277ce4cfefa48",
   "checks": [
     {
       "check": "registration",
@@ -41,6 +41,80 @@
     {
       "check": "starter-trigger",
       "focus": 1
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "choice": "Rest",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "choice": "Trade",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "choice": "Exchange",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true
+    },
+    {
+      "check": "event-leave",
+      "id": "QuietCamp",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "QuietCamp",
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "LastLesson",
+      "choice": "Listen",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true
+    },
+    {
+      "check": "event-leave",
+      "id": "LastLesson",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "LastLesson",
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "event-pools",
+      "characterOnly": true,
+      "soloOnly": true,
+      "actsVerified": true
     },
     {
       "check": "item-pools",
@@ -631,15 +705,15 @@
     {
       "check": "rewards-shop",
       "rewards": [
-        "CARD.NATIVEFIXTURE-CARD_BRACE",
-        "CARD.NATIVEFIXTURE-CARD_BREATHE",
-        "CARD.NATIVEFIXTURE-CARD_SWING"
+        "CARD.NATIVEFIXTURE-CARD_LUNGE",
+        "CARD.NATIVEFIXTURE-CARD_FIXTURE_RECHARGE",
+        "CARD.NATIVEFIXTURE-CARD_FIXTURE_SWEEP"
       ],
       "shop": [
+        "CARD.NATIVEFIXTURE-CARD_FIXTURE_SWEEP",
         "CARD.NATIVEFIXTURE-CARD_SWING",
-        "CARD.NATIVEFIXTURE-CARD_LUNGE",
-        "CARD.NATIVEFIXTURE-CARD_BREATHE",
         "CARD.NATIVEFIXTURE-CARD_BRACE",
+        "CARD.NATIVEFIXTURE-CARD_BREATHE",
         "CARD.NATIVEFIXTURE-CARD_COMPOSURE"
       ]
     },
@@ -690,5 +764,5 @@
     "Rare/Attack": 8,
     "Uncommon/Power": 9
   },
-  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait and item integration evidence, not visual or balance certification."
+  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item and event integration evidence, not visual, co-op or balance certification."
 }
