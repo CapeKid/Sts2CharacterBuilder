@@ -88,6 +88,11 @@ internal static class NativeProbe
             AccessTools.Method(typeof(AuthoredRelic), nameof(AuthoredRelic.AfterPlayerTurnStart)),
             postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveItemHook)));
 #endif
+#if BUILDER_AUTHORED_EVENTS
+        new Harmony(typeof(ModEntry).Namespace + ".builder-native-events").Patch(
+            AccessTools.Method(typeof(RunManager), "RollRoomTypeFor"),
+            prefix: new HarmonyMethod(typeof(NativeProbe), nameof(EventRoomRoll)));
+#endif
         Tree.ProcessFrame += Begin;
         GD.Print("Character builder isolated native probe ready; Steam Cloud save backend replaced.");
     }
@@ -144,6 +149,8 @@ internal static class NativeProbe
             var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
             if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            Progress("events");
+            await Events();
             Progress("items");
             await Items();
             foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
@@ -314,5 +321,6 @@ internal static class NativeProbe
     }
 
 @ITEM_PROBE@
+@EVENT_PROBE@
 }
 #endif
