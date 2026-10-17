@@ -1,5 +1,6 @@
 """Project bootstrap and ownership-aware generation. No game content is copied."""
 import os
+import json
 import shutil
 import subprocess
 import tempfile
@@ -7,7 +8,7 @@ import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .contracts import BuilderError, contained, digest, encoded, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, load_items, read_json, validate
 
 STEPS = ['setup', 'mechanics', 'cards', 'art', 'items', 'events', 'dialogue', 'sprites',
          'presentation', 'audio', 'verify', 'balance', 'publish']
@@ -106,6 +107,7 @@ def bootstrap(toolkit, target, args):
                toolkit_url=source, baselib='3.4.7', target_framework='net9.0',
                reference_commit='f46c3eaf8c76c43c6a70d0713f855760b96fec19')))
         atomic(temporary / 'design/cards.json', encoded(starter_cards()))
+        atomic(temporary / 'design/items.json', encoded(dict(schema_version=1, relics=[], potions=[])))
         manifest = []
         for kind in ('icon', 'card'):
             data = placeholder(kind, config['color'])
@@ -117,7 +119,7 @@ def bootstrap(toolkit, target, args):
         atomic(temporary / '.gitignore', b'.builder/\nprivate/\nbuild/\ndist/\nbin/\nobj/\n*.log\n')
         atomic(temporary / '.gitattributes', b'* text eol=lf\n*.svg -text\n*.png -text\n*.wav -text\n*.ogg -text\n')
         atomic(temporary / 'AGENTS.md', b'# Character project\n\nRead character.json, then tools/character-builder/builder/skills/create-character/SKILL.md.\nRun the toolkit CLI with --project set to this root. Resume before changing work.\nThe submodule is pinned; customizations belong in this repository.\n')
-        atomic(temporary / 'README.md', f'# {config["name"]}\n\nCharacter prototype created with Sts2CharacterBuilder.\n\nClone with `git clone --recurse-submodules <this-project-url>`. For an existing checkout run `git submodule update --init --recursive`.\n\nStart at [the entry workflow](tools/character-builder/builder/skills/create-character/SKILL.md).\nUse `python tools/character-builder/scripts/character-builder.py --project . resume`.\n\nInstall BaseLib 3.4.7 separately. Native character presentation, relic/power icons, potions and disabled custom content use runtime placeholders/native fallbacks.\nThis small card pool is a prototype, not a balanced release. See the verification report before distribution.\n'.encode())
+        atomic(temporary / 'README.md', f'# {config["name"]}\n\nCharacter prototype created with Sts2CharacterBuilder.\n\nClone with `git clone --recurse-submodules <this-project-url>`. For an existing checkout run `git submodule update --init --recursive`.\n\nStart at [the entry workflow](tools/character-builder/builder/skills/create-character/SKILL.md).\nUse `python tools/character-builder/scripts/character-builder.py --project . resume`.\n\nInstall BaseLib 3.4.7 separately. Native character presentation, item/power icons and disabled custom content use runtime placeholders/native fallbacks. See the toolkit item contract for optional authored relics and potions.\nThis small card pool is a prototype, not a balanced release. See the verification report before distribution.\n'.encode())
         atomic(temporary / 'LICENSE', (toolkit / 'LICENSE').read_bytes())
         (temporary / 'src/Extensions').mkdir(parents=True)
         generate(toolkit, temporary)
@@ -131,6 +133,7 @@ def bootstrap(toolkit, target, args):
 
 def generated(toolkit, root):
     config, cards, assets, lock = validate(toolkit, root)
+    items = load_items(toolkit, root, config)
     quote = lambda v: __import__('json').dumps(v, ensure_ascii=True)
     custom = config['features']['cards']
     mechanic = config['features']['mechanic']
@@ -139,8 +142,11 @@ def generated(toolkit, root):
         'NAMESPACE': config['namespace'], 'MOD_ID': quote(config['id']), 'COLOR': quote(config['color']),
         'HP': str(config['hp']), 'NAME': quote(config['name']), 'DESCRIPTION': quote(config['description']),
         'CARD_POOL': 'ModelDb.CardPool<CharacterCardPool>()' if custom else 'ModelDb.CardPool<IroncladCardPool>()',
-        'RELIC_POOL': 'ModelDb.RelicPool<CharacterRelicPool>()' if relic else 'ModelDb.RelicPool<IroncladRelicPool>()',
-        'START_RELIC': 'ModelDb.Relic<StarterRelic>()' if relic else 'ModelDb.Relic<BurningBlood>()',
+        'RELIC_POOL': 'ModelDb.RelicPool<AuthoredRelicPool>()' if items['relics'] else
+                      'ModelDb.RelicPool<CharacterRelicPool>()' if relic else 'ModelDb.RelicPool<IroncladRelicPool>()',
+        'START_RELIC': f'ModelDb.Relic<Relic_{items["starting_relic"]}>()' if 'starting_relic' in items else
+                       'ModelDb.Relic<StarterRelic>()' if relic else 'ModelDb.Relic<BurningBlood>()',
+        'POTION_POOL': 'ModelDb.PotionPool<AuthoredPotionPool>()' if items['potions'] else 'ModelDb.PotionPool<IroncladPotionPool>()',
         'DECK': ', '.join(f'ModelDb.Card<Card_{key}>()' for key in config['starting_deck']) if custom else
                 ', '.join(['ModelDb.Card<StrikeIronclad>()'] * 5 + ['ModelDb.Card<DefendIronclad>()'] * 4 + ['ModelDb.Card<Bash>()']),
         'POOL_CARDS': ''.join(f'ModelDb.Card<Card_{c["id"]}>(), ' for c in cards),
@@ -165,8 +171,25 @@ def generated(toolkit, root):
     mod = dict(id=config['id'], name=config['name'], author=config['author'], description=config['description'],
                version=config['version'], has_pck=False, has_dll=True, affects_gameplay=True,
                min_game_version='0.107.1', dependencies=[dict(id='BaseLib', min_version=lock['baselib'])])
-    return {'src/Generated/Character.cs': cs.encode(), 'Character.csproj': project.encode(),
-            f'{config["id"]}.json': encoded(mod)}
+    outputs = {'src/Generated/Character.cs': cs.encode(), 'Character.csproj': project.encode(),
+               f'{config["id"]}.json': encoded(mod)}
+    if items['relics'] or items['potions']:
+        relic_models = ([f'ModelDb.Relic<Relic_{r["id"]}>()' for r in items['relics']]
+                        + (['ModelDb.Relic<StarterRelic>()'] if relic else []))
+        item_replacements = dict(NAMESPACE=config['namespace'], ITEMS_JSON=quote(json.dumps(items, ensure_ascii=True)),
+            FOCUS_EFFECT='if (Number("focus") > 0) await PowerCmd.Apply<FocusPower>(context, player.Creature, Number("focus"), player.Creature, null);' if mechanic else '',
+            RELIC_POOL_TYPE=('public sealed class AuthoredRelicPool : RelicPoolModel {\n'
+                '    public override string EnergyColorName => ModelDb.RelicPool<IroncladRelicPool>().EnergyColorName;\n'
+                '    protected override RelicModel[] GenerateAllRelics() => [' + ', '.join(relic_models) + '];\n}') if items['relics'] else '',
+            POTION_POOL_TYPE=('public sealed class AuthoredPotionPool : PotionPoolModel {\n'
+                '    public override string EnergyColorName => ModelDb.PotionPool<IroncladPotionPool>().EnergyColorName;\n'
+                '    protected override IEnumerable<PotionModel> GenerateAllPotions() => [' +
+                ', '.join(f'ModelDb.Potion<Potion_{p["id"]}>()' for p in items['potions']) + '];\n}') if items['potions'] else '',
+            ITEM_TYPES='\n'.join([f'public sealed class Relic_{r["id"]} : AuthoredRelic {{ }}' for r in items['relics']] +
+                                 [f'public sealed class Potion_{p["id"]} : AuthoredPotion {{ }}' for p in items['potions']]))
+        template = (toolkit / 'builder/templates/Items.cs.txt').read_text()
+        outputs['src/Generated/Items.cs'] = re.sub(r'@([A-Z_]+)@', lambda match: item_replacements[match[1]], template).encode()
+    return outputs
 
 
 def generate(toolkit, root, check=False, freeze=False):
@@ -175,11 +198,13 @@ def generate(toolkit, root, check=False, freeze=False):
     old = read_json(marker) if marker.exists() else {}
     identities = contained(root, 'design/model-ids.json')
     config, cards, _, _ = validate(toolkit, root)
+    items = load_items(toolkit, root, config)
     previous = read_json(identities) if identities.exists() else None
     frozen = freeze or bool(previous and previous.get('frozen'))
     ids = dict(namespace=config['namespace'], mod_id=config['id'], frozen=frozen, models=['Character'] +
                (['StarterRelic'] if config['features']['items'] and config['features']['mechanic'] else []) +
-               (['FocusPower'] if config['features']['mechanic'] else []) + ['Card_' + c['id'] for c in cards])
+               (['FocusPower'] if config['features']['mechanic'] else []) + ['Card_' + c['id'] for c in cards] +
+               ['Relic_' + r['id'] for r in items['relics']] + ['Potion_' + p['id'] for p in items['potions']])
     if previous and previous.get('frozen'):
         if previous['namespace'] != ids['namespace'] or previous['mod_id'] != ids['mod_id'] or not set(previous['models']) <= set(ids['models']):
             raise BuilderError('Saved model identity removed or renamed; an explicit migration is required')

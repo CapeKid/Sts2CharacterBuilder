@@ -84,6 +84,32 @@ def check_schema(value, spec, label='$'):
             raise BuilderError(f'{label}: number outside bounds')
 
 
+def load_items(toolkit, root, config=None):
+    path = contained(root, 'design/items.json')
+    items = read_json(path) if path.exists() else dict(schema_version=1, relics=[], potions=[])
+    check_schema(items, read_json(toolkit / 'builder/items.schema.json'), '$items')
+    if config is None:
+        config = read_json(contained(root, 'character.json'))
+    if not config['features']['items'] and (items['relics'] or items['potions'] or 'starting_relic' in items):
+        raise BuilderError('Custom items disabled: clear relics, potions and starting_relic')
+    for group in ('relics', 'potions'):
+        # Native class-name conversion inserts word separators. Reserve ambiguous
+        # underscore/case variants rather than discovering a collision at startup.
+        ids = [r['id'].replace('_', '').casefold() for r in items[group]]
+        if len(ids) != len(set(ids)):
+            raise BuilderError(f'Duplicate {group} IDs (including case/underscore variants)')
+        for row in items[group]:
+            if not any(row['effects'].values()):
+                raise BuilderError(f'{row["id"]}: item needs at least one supported effect')
+            if row['effects']['focus'] and not config['features']['mechanic']:
+                raise BuilderError(f'{row["id"]}: focus requires the mechanic feature')
+    starter = items.get('starting_relic')
+    starters = [r['id'] for r in items['relics'] if r['rarity'] == 'Starter']
+    if starters != ([starter] if starter else []):
+        raise BuilderError('starting_relic must select the single authored Starter relic, or omit both')
+    return items
+
+
 def validate(toolkit, root):
     config = read_json(contained(root, 'character.json'))
     check_schema(config, read_json(toolkit / 'builder/character.schema.json'))
@@ -98,6 +124,7 @@ def validate(toolkit, root):
         raise BuilderError('Invalid toolkit lock')
     if lock.get('baselib') != '3.4.7' or lock.get('target_framework') != 'net9.0':
         raise BuilderError('Dependency upgrade requires a reviewed toolkit update')
+    load_items(toolkit, root, config)
     cards = read_json(contained(root, 'design/cards.json'))
     check_schema(cards, read_json(toolkit / 'builder/cards.schema.json'), '$cards')
     ids = [c['id'] for c in cards]
@@ -203,6 +230,9 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
+    items = contained(root, 'design/items.json')
+    if items.exists():
+        files.append(items)
     files += [contained(root, a['path']) for a in read_json(contained(root, 'assets/manifest.json'))]
     files += sorted((Path(root) / 'src').rglob('*.cs'))
     files += [contained(root, 'Character.csproj'), contained(root, 'design/model-ids.json'), contained(root, 'design/generated-files.json')]

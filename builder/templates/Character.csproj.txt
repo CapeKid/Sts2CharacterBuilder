@@ -8,6 +8,7 @@
     <RootNamespace>@NAMESPACE@</RootNamespace>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <DefineConstants Condition="'$(BuilderNativeTests)' == 'true'">$(DefineConstants);BUILDER_NATIVE_TESTS</DefineConstants>
+    <DefineConstants Condition="Exists('src/Generated/Items.cs')">$(DefineConstants);BUILDER_AUTHORED_ITEMS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.7" PrivateAssets="All" />
