@@ -29,7 +29,8 @@ namespace @NAMESPACE@;
 [ModInitializer(nameof(Initialize))]
 public static partial class ModEntry
 {
-    private static readonly Dictionary<string, Texture2D> Textures = new();
+    private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> TextureAssets = new(StringComparer.Ordinal) { @TEXTURE_ASSETS@ };
     static partial void Configure();
     public static void Initialize()
     {
@@ -41,11 +42,13 @@ public static partial class ModEntry
     }
     public static Texture2D Texture(string name)
     {
+        if (!TextureAssets.Contains(name)) throw new InvalidDataException("Undeclared character texture: " + name);
         if (Textures.TryGetValue(name, out var cached) && GodotObject.IsInstanceValid(cached)) return cached;
         var path = Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, "assets", name);
         using var image = new Image();
-        var error = image.LoadSvgFromString(File.ReadAllText(path));
-        if (error != Error.Ok) throw new InvalidDataException("Invalid character art: " + path);
+        var error = Path.GetExtension(path).Equals(".svg", StringComparison.OrdinalIgnoreCase)
+            ? image.LoadSvgFromString(File.ReadAllText(path)) : image.LoadPngFromBuffer(File.ReadAllBytes(path));
+        if (error != Error.Ok || image.IsEmpty()) throw new InvalidDataException("Invalid character art: " + path);
         return Textures[name] = ImageTexture.CreateFromImage(image);
     }
 }
@@ -154,7 +157,8 @@ public abstract class CharacterCard : CustomCardModel
         Enum.Parse<CardRarity>(CardData.Rows[id].GetProperty("rarity").GetString()!),
         Enum.Parse<TargetType>(CardData.Rows[id].GetProperty("target").GetString()!), autoAdd: false) { }
     public override CardPoolModel Pool => ModelDb.CardPool<CharacterCardPool>();
-    public override Texture2D CustomPortrait => ModEntry.Texture("card.svg");
+    public override Texture2D CustomPortrait => ModEntry.Texture(Row.TryGetProperty("portrait", out var portrait)
+        ? portrait.GetString()!["assets/".Length..] : "card.svg");
     public override string PortraitPath => MissingPortraitPath;
     public override string BetaPortraitPath => MissingPortraitPath;
     public override IEnumerable<string> AllPortraitPaths => [];

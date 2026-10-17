@@ -2,6 +2,8 @@
 
 The generator supports a small numeric effect vocabulary. Keep bespoke implementations in the character repository's `src/Extensions/`; the project compiles those files and regeneration preserves them. They are included in verification/build fingerprints. Do not write customizations into the toolkit submodule.
 
+Per-card SVG/PNG portraits use the optional data-driven `portrait` field; see [card art](ART.md). No extension override is needed for that supported path. `ModEntry.Texture` loads only SVG/PNG assets declared in the manifest, using paths relative to `assets/` (for example `cards/strike.png`). Other presentation behaviors still require project-owned code.
+
 The generated `Character`, `StarterRelic`, `FocusPower` and `ModEntry` are partial classes. Add presentation/lifecycle overrides in another part of the same class when the generator does not already define that member. For members already generated, use the hooks below or a separately implemented model. Do not duplicate an override in a partial class.
 
 For example, in `src/Extensions/Configure.cs`, using the project's actual namespace:

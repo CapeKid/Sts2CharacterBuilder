@@ -186,6 +186,16 @@ def validate(toolkit, root):
             raise BuilderError(f'Invalid Ogg header: {path}')
     if not {'assets/icon.svg', 'assets/card.svg'} <= paths:
         raise BuilderError('Required visible fallback assets: assets/icon.svg and assets/card.svg')
+    declared = {asset['path'] for asset in manifest}
+    for card in cards:
+        if 'portrait' not in card:
+            continue
+        portrait = card['portrait']
+        contained(root, portrait)
+        if not config['features']['art']:
+            raise BuilderError(f'{card["id"]}: portrait requires the art feature; remove portrait to use the fallback')
+        if portrait not in declared or Path(portrait).suffix.lower() not in {'.svg', '.png'}:
+            raise BuilderError(f'{card["id"]}: portrait must reference a declared SVG/PNG asset with exact path casing')
     # Narrative/custom code are authored by their skills; the small generator never half-registers them.
     return config, cards, manifest, lock
 

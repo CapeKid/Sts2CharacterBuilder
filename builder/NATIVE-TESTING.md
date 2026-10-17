@@ -23,6 +23,7 @@ The native suite checks:
 
 - Character/card registration and original icon loading; starter deck/relic identities and starter resource trigger.
 - Every generated numeric card, base and upgraded, played through the native paid action path: targeting rejection, Energy, damage, Block, draw, resource gain, Exhaust/Power/discard disposal, completed action/table cleanup and card save round trips. Draw/Energy/Focus descriptions must match the active upgrade values. The recorded local fixture adds two test-only designs to exercise positive Energy gain and all-enemy damage combined with Block.
+- Every generated card portrait in both upgrade states: decoded pixels/dimensions match the assigned SVG/PNG or shared fallback, cached textures are reused, and card save/load retains the selected texture. These checks require a fresh lab after a toolkit upgrade; old numeric-only evidence is incomplete. Human crop/style/legibility review remains separate.
 - Focus's native Block hook, actual turn transition, persistent combat counter and reset at the next combat.
 - Native reward and merchant creation, including owner/pool membership.
 - A permanent deck upgrade, full native run save/read/reconstruction/resume, and deck/relic/character identity preservation.
