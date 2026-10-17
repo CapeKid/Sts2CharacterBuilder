@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "9af36ffb5a8eaba7b065c7f1190b3aabbe96d52bc58ab1318445d8481431f6af",
-  "source_sha256": "c82ddd79d239184792d85e32ef6beee032b8c73081aeadea16d97df12cbca1d6",
-  "release_dll_sha256": "c59bdd97ac7c614daae9cda583a680c89c7ff68446528573e74ce48b14d46f5d",
-  "test_dll_sha256": "d824acd15199a5461da97de9e1a7d1b6ee119dc21f82416b3c35c637af88d685",
+  "input_sha256": "fd61dd81736c66e059e814840cb4c79a4e1657b4a83ef935d383e56d3061edd5",
+  "source_sha256": "ba4a15f27395e6d273a02620dd00f8e6ff96d3be008ed2dd8ed3d98d8c73f13a",
+  "release_dll_sha256": "d01650f71f758e771e165a736cc6363f827bfa0e891d50c1a669902784f980c5",
+  "test_dll_sha256": "6e57429e3e7c4b64bc1abc2a3e101e11ef7a311f0bea40a5153e9f0d1c6b937a",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "7be2f024e3ab66c07b35022ef44a5f87b7522fd73a062344aec1acbff3b1cc42",
+  "probe_source_sha256": "1db7d3f06fee17550cba3aebd64a7549b990e7df6394f9511d90dd6d13563206",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -23,8 +23,8 @@
     "Bespoke extension effects are outside the numeric fixtures",
     "Campaign balance and Workshop delivery unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless, eight bootstrap cards plus fixture-only Recharge and Sweep designs",
-  "fixture_toolkit_snapshot": "2992f37215faaf596fdda77fc42e22ca219a9538",
+  "fixture": "NativeFixture, Windows/headless, eight bootstrap cards plus fixture-only Recharge/Sweep; two-pixel PNG Strike, original SVG Guard, shared fallback on other cards",
+  "fixture_toolkit_snapshot": "1f8bf7f99611a5169241e1036c009bf5504b2602",
   "checks": [
     {
       "check": "registration",
@@ -43,6 +43,16 @@
       "focus": 1
     },
     {
+      "check": "card-portrait",
+      "card": "Strike",
+      "upgraded": false,
+      "asset": "assets/cards/strike art.png",
+      "width": 2,
+      "height": 1,
+      "sha256": "5a852fbaaaecaf4cd14c01e150c7f881c5c5894b0a1e3c53be7e007c58374ee6",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Strike",
       "upgraded": false,
@@ -57,6 +67,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Strike",
+      "upgraded": true,
+      "asset": "assets/cards/strike art.png",
+      "width": 2,
+      "height": 1,
+      "sha256": "5a852fbaaaecaf4cd14c01e150c7f881c5c5894b0a1e3c53be7e007c58374ee6",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Strike",
       "upgraded": true,
@@ -69,6 +89,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Guard",
+      "upgraded": false,
+      "asset": "assets/cards/guard.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "00f9252f7eb6e6117dbedf7b9b7b789a421a569b8dce062d7bb514886e135edc",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -85,6 +115,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Guard",
+      "upgraded": true,
+      "asset": "assets/cards/guard.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "00f9252f7eb6e6117dbedf7b9b7b789a421a569b8dce062d7bb514886e135edc",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Guard",
       "upgraded": true,
@@ -97,6 +137,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Practice",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -113,6 +163,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Practice",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Practice",
       "upgraded": true,
@@ -125,6 +185,16 @@
       "focus": 2,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Swing",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -141,6 +211,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Swing",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Swing",
       "upgraded": true,
@@ -153,6 +233,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Breathe",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -169,6 +259,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Breathe",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Breathe",
       "upgraded": true,
@@ -181,6 +281,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Composure",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -197,6 +307,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Composure",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Composure",
       "upgraded": true,
@@ -209,6 +329,16 @@
       "focus": 3,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Lunge",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -225,6 +355,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Lunge",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Lunge",
       "upgraded": true,
@@ -237,6 +377,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "Brace",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -253,6 +403,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "Brace",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "Brace",
       "upgraded": true,
@@ -265,6 +425,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "FixtureRecharge",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",
@@ -281,6 +451,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "FixtureRecharge",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "FixtureRecharge",
       "upgraded": true,
@@ -295,6 +475,16 @@
       "textVerified": true
     },
     {
+      "check": "card-portrait",
+      "card": "FixtureSweep",
+      "upgraded": false,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
+    },
+    {
       "check": "paid-card",
       "card": "FixtureSweep",
       "upgraded": false,
@@ -307,6 +497,16 @@
       "focus": 0,
       "cardSaveRoundTrip": true,
       "textVerified": true
+    },
+    {
+      "check": "card-portrait",
+      "card": "FixtureSweep",
+      "upgraded": true,
+      "asset": "assets/card.svg",
+      "width": 500,
+      "height": 380,
+      "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+      "cached": true
     },
     {
       "check": "paid-card",

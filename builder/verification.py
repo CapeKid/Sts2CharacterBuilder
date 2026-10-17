@@ -104,6 +104,12 @@ def native_evidence(toolkit, root):
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
         raise BuilderError('Native evidence does not cover the required suite and every generated upgrade')
+    portraits = [(check.get('card'), check.get('upgraded'), check.get('asset')) for check in receipt.get('checks', [])
+                 if check.get('check') == 'card-portrait']
+    expected_portraits = {(card['id'], upgraded, card.get('portrait', 'assets/card.svg'))
+                         for card in cards for upgraded in (False, True)}
+    if set(portraits) != expected_portraits or len(portraits) != len(expected_portraits):
+        raise BuilderError('Native evidence does not cover every generated portrait and upgrade')
     return receipt
 
 

@@ -185,6 +185,7 @@ internal static class NativeProbe
         Require(ModelDb.AllCards.Contains(canonical), "Card is absent from compendium registry.");
         var card = combat.CreateCard(canonical, player);
         if (upgraded) CardCmd.Upgrade(card);
+        Portrait(row, card, upgraded);
         await CardPileCmd.Add(card, PileType.Hand, skipVisuals: true);
         await PlayerCmd.GainEnergy(20, player);
         var values = row.GetProperty(upgraded ? "upgrade" : "base");
@@ -214,8 +215,26 @@ internal static class NativeProbe
         var saved = Run.LoadCard(card.ToSerializable(), player);
         Require(saved.Id == card.Id && saved.IsUpgraded == card.IsUpgraded && saved.EnergyCost.GetWithModifiers(CostModifiers.All) == Expected("cost"), "Card save identity/cost changed.");
         Require(saved.DynamicVars.Damage.BaseValue == card.DynamicVars.Damage.BaseValue && saved.DynamicVars.Block.BaseValue == card.DynamicVars.Block.BaseValue, "Upgraded stats changed on load.");
+        Require(ReferenceEquals(((CharacterCard)saved).CustomPortrait, ((CharacterCard)card).CustomPortrait), "Portrait changed on card save/load.");
         Run.RemoveCard(saved);
         return new { check = "paid-card", card = key, upgraded, pile = expectedPile.ToString(), energy = Expected("cost"), energyGain = Expected("energy"), damage = Expected("damage"), block = Expected("block"), draw = Expected("draw"), focus, cardSaveRoundTrip = true, textVerified = true };
+    }
+
+    private static void Portrait(JsonElement row, CardModel card, bool upgraded)
+    {
+        var asset = row.TryGetProperty("portrait", out var path) ? path.GetString()! : "assets/card.svg";
+        var file = Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, asset);
+        using var expected = new Image();
+        var error = Path.GetExtension(file).Equals(".svg", StringComparison.OrdinalIgnoreCase)
+            ? expected.LoadSvgFromString(File.ReadAllText(file)) : expected.LoadPngFromBuffer(File.ReadAllBytes(file));
+        Require(error == Error.Ok && !expected.IsEmpty(), "Portrait fixture failed to decode.");
+        var texture = ((CharacterCard)card).CustomPortrait;
+        Require(GodotObject.IsInstanceValid(texture), "Portrait texture is invalid.");
+        Require(ReferenceEquals(texture, ((CharacterCard)card).CustomPortrait), "Portrait cache missed.");
+        using var actual = texture.GetImage();
+        Require(actual.GetSize() == expected.GetSize() && actual.GetData().SequenceEqual(expected.GetData()), "Portrait pixels differ from the declared asset.");
+        Checks.Add(new { check = "card-portrait", card = row.GetProperty("id").GetString(), upgraded, asset,
+            width = actual.GetWidth(), height = actual.GetHeight(), sha256 = Sha(file), cached = true });
     }
 
     private static async Task ResourceTurn()

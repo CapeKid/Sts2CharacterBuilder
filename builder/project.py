@@ -144,6 +144,7 @@ def generated(toolkit, root):
         'DECK': ', '.join(f'ModelDb.Card<Card_{key}>()' for key in config['starting_deck']) if custom else
                 ', '.join(['ModelDb.Card<StrikeIronclad>()'] * 5 + ['ModelDb.Card<DefendIronclad>()'] * 4 + ['ModelDb.Card<Bash>()']),
         'POOL_CARDS': ''.join(f'ModelDb.Card<Card_{c["id"]}>(), ' for c in cards),
+        'TEXTURE_ASSETS': ', '.join(quote(a['path'][7:]) for a in assets if Path(a['path']).suffix.lower() in {'.svg', '.png'}),
         'CARD_TYPES': '\n'.join(f'public sealed class Card_{c["id"]}() : CharacterCard({quote(c["id"])});' for c in cards)
     }
     cs = (toolkit / 'builder/templates/Character.cs.txt').read_text()

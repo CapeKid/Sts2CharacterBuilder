@@ -41,6 +41,11 @@
       "exhaust": {
         "type": "boolean"
       },
+      "portrait": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240
+      },
       "base": {
         "type": "object",
         "additionalProperties": false,

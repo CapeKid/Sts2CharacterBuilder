@@ -5,15 +5,25 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import tempfile
 import unittest
 import zipfile
+import zlib
 
 from builder.contracts import BuilderError, digest, encoded, input_hash, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def portrait_png():
+    """Two distinct RGBA pixels, built without an image-library dependency."""
+    def chunk(kind, data):
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 2, 1, 8, 6, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(b'\x00\xff\x00\x00\xff\x00\xff\x00\xff')) + chunk(b'IEND', b''))
 
 
 class ToolkitTests(unittest.TestCase):
@@ -158,6 +168,56 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'Invalid PNG'):
             validate(self.toolkit, self.project)
 
+    def add_portrait(self, path='assets/cards/Strike art.png', data=None):
+        data = portrait_png() if data is None else data
+        atomic(self.project / path, data)
+        self.edit('assets/manifest.json', lambda a: a.append(dict(path=path, sha256=digest(data),
+                  method='original', license='MIT', credit='Fixture')))
+        self.edit('design/cards.json', lambda c: c[0].update(portrait=path))
+        return data
+
+    def test_portrait_assets_preserved_packaged_and_invalidate_build(self):
+        png = self.add_portrait()
+        svg = (self.project / 'assets/card.svg').read_bytes().replace(b'57B8A7', b'AA3355')
+        atomic(self.project / 'assets/cards/guard.svg', svg)
+        self.edit('assets/manifest.json', lambda a: a.append(dict(path='assets/cards/guard.svg', sha256=digest(svg),
+                  method='original', license='MIT', credit='Fixture')))
+        self.edit('design/cards.json', lambda c: c[1].update(portrait='assets/cards/guard.svg'))
+        generate(self.toolkit, self.project, freeze=True)
+        ids = (self.project / 'design/model-ids.json').read_bytes()
+        self.mock_build()
+        with zipfile.ZipFile(stage(self.toolkit, self.project)['archive']) as archive:
+            self.assertEqual(archive.read('TestHero/assets/cards/Strike art.png'), png)
+            self.assertEqual(archive.read('TestHero/assets/cards/guard.svg'), svg)
+        self.edit('design/cards.json', lambda c: c[0].pop('portrait'))
+        generate(self.toolkit, self.project)
+        self.assertEqual((self.project / 'design/model-ids.json').read_bytes(), ids)
+        self.assertEqual((self.project / 'assets/cards/Strike art.png').read_bytes(), png)
+        with self.assertRaisesRegex(BuilderError, 'stale'):
+            stage(self.toolkit, self.project)
+
+    def test_invalid_portrait_references_and_disabled_art(self):
+        self.add_portrait()
+        for path in ('../outside.png', 'assets/cards/strike art.png', 'assets/missing.svg', 'assets/card.svg/../card.svg', ''):
+            with self.subTest(path=path):
+                self.edit('design/cards.json', lambda c: c[0].update(portrait=path))
+                with self.assertRaises(BuilderError):
+                    validate(self.toolkit, self.project)
+        self.edit('design/cards.json', lambda c: c[0].update(portrait='assets/cards/Strike art.png'))
+        self.edit('character.json', lambda c: c['features'].update(art=False))
+        with self.assertRaisesRegex(BuilderError, 'art feature'):
+            validate(self.toolkit, self.project)
+        self.edit('design/cards.json', lambda c: c[0].pop('portrait'))
+        generate(self.toolkit, self.project)
+        # A declared sound is valid in the manifest but cannot serve as a portrait.
+        self.edit('character.json', lambda c: c['features'].update(art=True))
+        atomic(self.project / 'assets/test.ogg', b'OggS\x00' + b'\x00' * 22)
+        self.edit('assets/manifest.json', lambda a: a.append(dict(path='assets/test.ogg',
+                  sha256=digest(b'OggS\x00' + b'\x00' * 22), method='original', license='MIT', credit='Fixture')))
+        self.edit('design/cards.json', lambda c: c[0].update(portrait='assets/test.ogg'))
+        with self.assertRaisesRegex(BuilderError, 'SVG/PNG'):
+            validate(self.toolkit, self.project)
+
     def test_native_fallback_generation(self):
         # Feature choices may change freely until the first successful native build.
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False, items=False), c.update(starting_deck=[])))
@@ -229,7 +289,9 @@ class ToolkitTests(unittest.TestCase):
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
         checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
-        receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=checks,
+        checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
+                   for card in cards for upgrade in (False, True)]
+        receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=list(checks),
                        input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
                        toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
                        native_comparators=[dict(character='CHARACTER.FIXTURE', cards=[dict(type='Attack', rarity='Common')] * 3)])
@@ -247,13 +309,21 @@ class ToolkitTests(unittest.TestCase):
         publish()
         with self.assertRaisesRegex(BuilderError, 'cover'):
             native_evidence(self.toolkit, self.project)
+        receipt['checks'] = checks[:-1] + [dict(check='card-portrait', card=cards[-1]['id'], upgraded=True, asset='assets/wrong.svg')]
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'portrait'):
+            native_evidence(self.toolkit, self.project)
         receipt['checks'] = checks
+        publish()
+        self.assertIsNotNone(native_evidence(self.toolkit, self.project))
         self.edit('character.json', lambda c: c.__setitem__('hp', 72))
         generate(self.toolkit, self.project)
         self.assertEqual(verify(self.toolkit, self.project)['native']['status'], 'stale')
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
+        self.add_portrait()
+        generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
         except BuilderError:
