@@ -11,6 +11,7 @@
     <DefineConstants Condition="Exists('src/Generated/Items.cs')">$(DefineConstants);BUILDER_AUTHORED_ITEMS</DefineConstants>
     <DefineConstants Condition="Exists('src/Generated/Events.cs')">$(DefineConstants);BUILDER_AUTHORED_EVENTS</DefineConstants>
     <DefineConstants Condition="Exists('src/Generated/Dialogue.cs')">$(DefineConstants);BUILDER_AUTHORED_DIALOGUE</DefineConstants>
+    <DefineConstants Condition="Exists('src/Generated/Sprites.cs')">$(DefineConstants);BUILDER_AUTHORED_SPRITES</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.7" PrivateAssets="All" />

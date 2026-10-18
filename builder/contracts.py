@@ -151,6 +151,54 @@ def load_dialogue(toolkit, root, config=None):
     return rows
 
 
+def load_sprites(toolkit, root, config=None):
+    path = contained(root, 'design/sprites.json')
+    data = read_json(path) if path.exists() else {}
+    if not data:
+        if type(data) is not dict:
+            raise BuilderError('$sprites: expected object')
+        return None
+    check_schema(data, read_json(toolkit / 'builder/sprites.schema.json'), '$sprites')
+    config = config or read_json(contained(root, 'character.json'))
+    if not config['features']['sprites']:
+        raise BuilderError('Custom sprites disabled: clear design/sprites.json')
+    atlas = data['atlas']
+    manifest = read_json(contained(root, 'assets/manifest.json'))
+    if atlas not in {a['path'] for a in manifest} or Path(atlas).suffix.lower() not in {'.svg', '.png'}:
+        raise BuilderError('Sprite atlas must reference an exact declared SVG/PNG asset')
+    raw = contained(root, atlas).read_bytes()
+    if atlas.lower().endswith('.png'):
+        import struct
+        size = struct.unpack('>II', raw[16:24]) if len(raw) >= 24 else ()
+    else:
+        import xml.etree.ElementTree as ET
+        try:
+            svg = ET.fromstring(raw)
+            size = tuple(int(svg.attrib[k].removesuffix('px')) for k in ('width', 'height'))
+        except (ET.ParseError, KeyError, ValueError) as error:
+            raise BuilderError('Sprite SVG needs explicit integer width and height') from error
+    if size != (data['width'], data['height']):
+        raise BuilderError('Sprite atlas dimensions differ from declared width/height')
+    left = top = 0
+    right = bottom = 0
+    for frame in data['frames']:
+        x, y, w, h = frame['rect']
+        ax, ay = frame['anchor']
+        if not w or not h or x + w > size[0] or y + h > size[1] or ax > w or ay > h:
+            raise BuilderError('Sprite frame rectangle/anchor outside atlas or frame')
+        left, top = min(left, -ax), min(top, -ay)
+        right, bottom = max(right, w - ax), max(bottom, h - ay)
+    scale = data['scale_percent'] / 100
+    if (right - left) * scale > 512 or (bottom - top) * scale > 512:
+        raise BuilderError('Sprite display bounds exceed 512 pixels; reduce scale or frame extent')
+    for name, state in data['states'].items():
+        if any(i >= len(data['frames']) for i in state['frames']):
+            raise BuilderError('Sprite animation references a missing frame')
+        if name not in {'idle', 'victory'} and len(state['frames']) / state['fps'] > 5:
+            raise BuilderError('Sprite one-shot duration exceeds five seconds')
+    return data
+
+
 def validate(toolkit, root):
     config = read_json(contained(root, 'character.json'))
     check_schema(config, read_json(toolkit / 'builder/character.schema.json'))
@@ -256,6 +304,7 @@ def validate(toolkit, root):
             raise BuilderError(f'Invalid Ogg header: {path}')
     if not {'assets/icon.svg', 'assets/card.svg'} <= paths:
         raise BuilderError('Required visible fallback assets: assets/icon.svg and assets/card.svg')
+    load_sprites(toolkit, root, config)
     declared = {asset['path'] for asset in manifest}
     for card in cards:
         if 'portrait' not in card:
@@ -273,7 +322,7 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json'):
+    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json'):
         optional = contained(root, relative)
         if optional.exists():
             files.append(optional)

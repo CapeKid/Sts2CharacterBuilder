@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "a56a9e5276d9c25b1359d043e3eb9540d5ce43a88a5ef04e68df513f75148bc9",
-  "source_sha256": "73d0be01dd04dd178eefcdfe0448ba54a69892e656046f79a8d3d71701a500ee",
-  "release_dll_sha256": "87ebfa87dd4b76d6d4fd814b114472db4df2a111c9b8172cda59c4585104d460",
-  "test_dll_sha256": "655aad3edc54fa17522a425272415428a02befe97e0d1c852b645ea1d91810ae",
+  "input_sha256": "e24f7ca4532436f15a2f62e92bba408e08e2669abd889b8ef7951a3fe12ce531",
+  "source_sha256": "c2cd531d970a21f0706ba043229f95b231bd736d971985bbd59fc32eec182ce4",
+  "release_dll_sha256": "6520a61b4079daca5e41c05e15ad4813742cfcd71c092e183e4048934eda8906",
+  "test_dll_sha256": "9222c3e3f7677ebae28d24d469cb5e628def6b397104ebb6052718eb969c32d9",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "1f986da4ee35983f702a0b49002cb18d0691d971a27c30ec38b0a5fcd7eacede",
+  "probe_source_sha256": "c194f3a71b58a7cbf43ccc1d8204db8ae414e076dc0fb7cac1ccbdff5a301f52",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -23,8 +23,8 @@
     "Bespoke extension effects are outside the numeric fixtures",
     "Campaign balance and Workshop delivery unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless, eight bootstrap cards plus Recharge/Sweep; PNG/SVG/fallback portraits; five relics, three potions; two solo events; three first/repeat Ancient conversations including one line, native locale switching and map checkpoints",
-  "fixture_toolkit_snapshot": "5ea983554aa3f3b30992d89aab3abf8440d0ce8d",
+  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction",
+  "fixture_toolkit_snapshot": "6b85a077b0f83715f4ad97948489f0169aceb6a4",
   "checks": [
     {
       "check": "registration",
@@ -170,6 +170,78 @@
       "visit": "first",
       "nativeCheckpoint": true,
       "replayFromStart": true
+    },
+    {
+      "check": "sprite-integration",
+      "asset": "assets/sprites/actor.svg",
+      "width": 768,
+      "height": 96,
+      "cached": true,
+      "nativeCharacterUnchanged": true,
+      "markers": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "idle",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "attack",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "skill",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "hurt",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "victory",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-state",
+      "state": "death",
+      "frames": 2,
+      "anchors": true,
+      "timing": true,
+      "nativeTrigger": true,
+      "visible": true
+    },
+    {
+      "check": "sprite-victory",
+      "nativeCombatWon": true
+    },
+    {
+      "check": "sprite-reset",
+      "newCombatIdle": true,
+      "previousFreed": true
     },
     {
       "check": "item-pools",
@@ -773,6 +845,11 @@
       ]
     },
     {
+      "check": "sprite-resume",
+      "atlas": "assets/sprites/actor.svg",
+      "idleAfterLoad": true
+    },
+    {
       "check": "native-save-resume",
       "character": "CHARACTER.NATIVEFIXTURE-CHARACTER",
       "deck": [
@@ -819,5 +896,5 @@
     "Rare/Attack": 8,
     "Uncommon/Power": 9
   },
-  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item, event, dialogue and locale-reload integration evidence, not visual, translated-layout, device, co-op or balance certification."
+  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item, event, dialogue, locale and combat-sprite integration evidence. Other room presentation, human art/layout, devices, co-op and balance remain separate gates."
 }

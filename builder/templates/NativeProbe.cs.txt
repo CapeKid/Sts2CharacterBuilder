@@ -6,6 +6,7 @@ using System.Text.Json;
 using Environment = System.Environment;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Entities.Ancients;
 using MegaCrit.Sts2.Core.Nodes.Events;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -156,6 +157,8 @@ internal static class NativeProbe
             await Events();
             Progress("dialogue");
             await Dialogue();
+            Progress("sprites");
+            await Sprites();
             Progress("items");
             await Items();
             foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
@@ -321,6 +324,10 @@ internal static class NativeProbe
         Require(Run.Players.Single().PotionSlots.Select(p => p?.Id.ToString()).SequenceEqual(potionIds), "Potion slots/identities changed on resume.");
         await Room();
         var focus = Run.Players.Single().Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
+#if BUILDER_AUTHORED_SPRITES
+        CheckSpriteReset();
+        Checks.Add(new { check = "sprite-resume", atlas = CharacterSprites.Data.GetProperty("atlas").GetString(), idleAfterLoad = true });
+#endif
         if (Request.GetProperty("focus_starter").GetBoolean()) Require(focus?.Amount == 1, "Resource failed to reset at the next combat.");
         Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids, relics = relicIds, potions = potionIds, nextCombatFocus = focus?.Amount ?? 0 });
     }
@@ -328,5 +335,6 @@ internal static class NativeProbe
 @ITEM_PROBE@
 @EVENT_PROBE@
 @DIALOGUE_PROBE@
+@SPRITE_PROBE@
 }
 #endif
