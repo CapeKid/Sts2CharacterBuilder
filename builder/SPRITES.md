@@ -50,6 +50,14 @@ a new visual. Repeating an attack/skill/hurt trigger restarts that action. Nativ
 Cast/Powerup map to skill, Hit to hurt, and Dead/Die to death. Victory starts from
 the game's `CombatWon` event. Scene removal detaches that event subscription.
 
+Fairy in a Bottle is verified through native lethal damage and automatic potion
+activation, not just a direct revive-animation call. The suite checks ordinary
+lethal-hit recovery, recovery while the sprite is holding its death pose, and a
+subsequent lethal hit with another Fairy. It requires the same visible authored
+sprite/atlas, idle frame anchors and scale, correct HP restoration and consumption
+of only the Fairy, plus a working attack and return to idle afterward. The held-pose
+case is an explicit visual-state control, not a claim of a separate full death.
+
 The generated `src/Generated/Sprites.cs` overrides only this character's combat
 visual factory. It creates native bounds, intent/orb/talk/center markers and a form
 VFX holder around an `AnimatedSprite2D`. BaseLib routes native animation triggers;
@@ -69,5 +77,7 @@ lab. Sprite data, asset bytes, generated code and toolkit pins invalidate eviden
 The suite checks decoded atlas pixels/cache, crops, anchors, bounds/markers, state
 timing and visible pixels, native triggers/restarts, one-shot completion, death and
 revive, actual combat victory, new-combat reset and save/resume reconstruction.
+Current evidence must also contain all three Fairy revival cases; older sprite
+receipts without this coverage are incomplete.
 Human style/crop/1280x800 review, physical controls, online co-op, other room layouts
 and final defeat/victory screens remain separate completion gates.

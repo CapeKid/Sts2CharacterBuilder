@@ -137,6 +137,10 @@ def native_evidence(toolkit, root):
         raise BuilderError('Native evidence does not cover every sprite state')
     if sprites and not {'sprite-victory', 'sprite-reset', 'sprite-resume'} <= labels:
         raise BuilderError('Native evidence does not cover sprite victory/reset/resume')
+    fairy = [c.get('case') for c in receipt.get('checks', []) if c.get('check') == 'sprite-fairy-revive']
+    expected_fairy = {'lethal-hit', 'held-death-pose', 'repeated-lethal-hit'} if sprites else set()
+    if set(fairy) != expected_fairy or len(fairy) != len(expected_fairy):
+        raise BuilderError('Native evidence does not cover every Fairy sprite revive case')
     return receipt
 
 
