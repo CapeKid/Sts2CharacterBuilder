@@ -9,7 +9,7 @@ import subprocess
 import time
 import uuid
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_events, load_items, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_dialogue, load_events, load_items, read_json, validate
 from .project import atomic, generate
 from .verification import build, pin_check, source_hash
 
@@ -158,6 +158,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
     probe = (toolkit / 'builder/templates/NativeProbe.cs.txt').read_text(encoding='utf-8').replace('@NAMESPACE@', config['namespace'])
     probe = probe.replace('@ITEM_PROBE@', (toolkit / 'builder/templates/NativeItems.cs.txt').read_text(encoding='utf-8'))
     probe = probe.replace('@EVENT_PROBE@', (toolkit / 'builder/templates/NativeEvents.cs.txt').read_text(encoding='utf-8'))
+    probe = probe.replace('@DIALOGUE_PROBE@', (toolkit / 'builder/templates/NativeDialogue.cs.txt').read_text(encoding='utf-8'))
     probe_path = contained(root, '.builder/NativeProbe.cs')
     atomic(probe_path, probe.encode())
     test_output = contained(root, 'build/native-tests')
@@ -184,6 +185,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
                    input_sha256=input_hash(root), cards=cards,
                    items=items,
                    events=load_events(toolkit, root, config),
+                   dialogue=load_dialogue(toolkit, root, config),
                    focus_starter=config['features']['items'] and config['features']['mechanic'] and
                                  'starting_relic' not in items)
     atomic(lab / 'request.json', encoded(request))

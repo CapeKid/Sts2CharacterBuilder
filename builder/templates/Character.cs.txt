@@ -32,12 +32,14 @@ public static partial class ModEntry
     private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
     private static readonly HashSet<string> TextureAssets = new(StringComparer.Ordinal) { @TEXTURE_ASSETS@ };
     static partial void Configure();
+    static partial void InitializeDialogue();
     public static void Initialize()
     {
 #if BUILDER_NATIVE_TESTS
         NativeProbe.Initialize();
 #endif
         Configure();
+        InitializeDialogue();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
     }
     public static Texture2D Texture(string name)

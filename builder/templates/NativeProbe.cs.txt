@@ -6,6 +6,9 @@ using System.Text.Json;
 using Environment = System.Environment;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Ancients;
+using MegaCrit.Sts2.Core.Nodes.Events;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -151,6 +154,8 @@ internal static class NativeProbe
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
             Progress("events");
             await Events();
+            Progress("dialogue");
+            await Dialogue();
             Progress("items");
             await Items();
             foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
@@ -322,5 +327,6 @@ internal static class NativeProbe
 
 @ITEM_PROBE@
 @EVENT_PROBE@
+@DIALOGUE_PROBE@
 }
 #endif

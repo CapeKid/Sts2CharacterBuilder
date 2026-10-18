@@ -135,6 +135,22 @@ def load_events(toolkit, root, config=None):
     return events
 
 
+def load_dialogue(toolkit, root, config=None):
+    path = contained(root, 'design/dialogue.json')
+    rows = read_json(path) if path.exists() else []
+    check_schema(rows, read_json(toolkit / 'builder/dialogue.schema.json'), '$dialogue')
+    config = config or read_json(contained(root, 'character.json'))
+    if rows and not config['features']['dialogue']:
+        raise BuilderError('Custom dialogue disabled: clear design/dialogue.json')
+    keys = [(r['ancient'], r['visit']) for r in rows]
+    if len(keys) != len(set(keys)):
+        raise BuilderError('Duplicate Ancient/visit dialogue')
+    for row in rows:
+        if 'next' in row['lines'][-1]:
+            raise BuilderError('Final dialogue line cannot specify next; native reward options follow')
+    return rows
+
+
 def validate(toolkit, root):
     config = read_json(contained(root, 'character.json'))
     check_schema(config, read_json(toolkit / 'builder/character.schema.json'))
@@ -151,6 +167,7 @@ def validate(toolkit, root):
         raise BuilderError('Dependency upgrade requires a reviewed toolkit update')
     load_items(toolkit, root, config)
     load_events(toolkit, root, config)
+    load_dialogue(toolkit, root, config)
     cards = read_json(contained(root, 'design/cards.json'))
     check_schema(cards, read_json(toolkit / 'builder/cards.schema.json'), '$cards')
     ids = [c['id'] for c in cards]
@@ -256,7 +273,7 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    for relative in ('design/items.json', 'design/events.json'):
+    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json'):
         optional = contained(root, relative)
         if optional.exists():
             files.append(optional)

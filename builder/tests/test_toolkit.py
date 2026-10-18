@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_events, load_items, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_dialogue, load_events, load_items, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -48,6 +48,16 @@ def authored_events():
                           choice('Exchange', gold=10, hp=3, gain=15, heal=4)]),
             dict(id='LastLesson', name='A Last Lesson', body='A final lesson awaits.', acts=[3],
                  choices=[choice('Listen', heal=8)])]
+
+
+def authored_dialogue():
+    rows = [dict(ancient=ancient, visit=visit, lines=[
+        dict(speaker='Ancient', text='A quiet moment before the climb.', next='Answer'),
+        dict(speaker='Character', text='I will use it well.'),
+        dict(speaker='Ancient', text='Then take your next step.')])
+        for ancient, visit in [('NEOW', 'first'), ('NEOW', 'repeat'), ('DARV', 'first')]]
+    rows[-1]['lines'] = [dict(speaker='Character', text='Let the next step speak for itself.')]
+    return rows
 
 
 class ToolkitTests(unittest.TestCase):
@@ -435,15 +445,59 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'stale'):
             stage(self.toolkit, self.project)
 
+    def test_dialogue_contract_and_optional_generation(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        invalid = [lambda r: r.append(copy.deepcopy(r[0])),
+                   lambda r: r[0].update(ancient='THE_ARCHITECT'),
+                   lambda r: r[0].update(visit='victory'),
+                   lambda r: r[0].update(lines=[]),
+                   lambda r: r[0]['lines'][0].update(speaker='Other'),
+                   lambda r: r[0]['lines'][0].update(text=' '),
+                   lambda r: r[0]['lines'][-1].update(next='Invalid'),
+                   lambda r: r[0].update(progression=True)]
+        for mutate in invalid:
+            rows = authored_dialogue()
+            mutate(rows)
+            atomic(self.project / 'design/dialogue.json', encoded(rows))
+            with self.assertRaises(BuilderError):
+                validate(self.toolkit, self.project)
+        rows = authored_dialogue()
+        rows[0]['lines'][0]['text'] = 'Literal @DIALOGUE_JSON@ and "quotes"'
+        atomic(self.project / 'design/dialogue.json', encoded(rows))
+        generate(self.toolkit, self.project)
+        generated = self.project / 'src/Generated/Dialogue.cs'
+        self.assertIn('@DIALOGUE_JSON@', generated.read_text())
+        before = input_hash(self.project)
+        self.edit('design/dialogue.json', lambda r: r[0]['lines'][0].update(text='Changed'))
+        self.assertNotEqual(before, input_hash(self.project))
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'):
+            generate(self.toolkit, self.project, check=True)
+        self.edit('character.json', lambda c: c['features'].update(dialogue=False))
+        with self.assertRaisesRegex(BuilderError, 'dialogue disabled'):
+            validate(self.toolkit, self.project)
+        atomic(self.project / 'design/dialogue.json', encoded([]))
+        original = generated.read_bytes()
+        generated.write_bytes(original + b'// hand edit')
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'):
+            generate(self.toolkit, self.project)
+        generated.write_bytes(original)
+        generate(self.toolkit, self.project)
+        self.assertFalse(generated.exists())
+        (self.project / 'design/dialogue.json').unlink()
+        self.assertEqual(load_dialogue(self.toolkit, self.project), [])
+        generate(self.toolkit, self.project, check=True)
+
     def test_native_evidence_requires_complete_current_coverage(self):
         atomic(self.project / 'design/items.json', encoded(authored_items()))
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()))
         generate(self.toolkit, self.project)
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
         checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
                    for card in cards for upgrade in (False, True)]
@@ -452,6 +506,8 @@ class ToolkitTests(unittest.TestCase):
         checks += [dict(check='authored-event', id=event['id'], choice=choice['id'])
                    for event in authored_events() for choice in event['choices']]
         checks += [dict(check=label, id=event['id']) for event in authored_events() for label in ('event-leave', 'event-resume')]
+        checks += [dict(check=label, ancient=r['ancient'], visit=r['visit']) for r in authored_dialogue()
+                   for label in ('authored-dialogue', 'dialogue-resume')]
         receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=list(checks),
                        input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
                        toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
@@ -489,6 +545,13 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = checks
         publish()
         self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        for label in ('authored-dialogue', 'dialogue-resume'):
+            receipt['checks'] = [c for c in checks if c.get('check') != label]
+            publish()
+            with self.assertRaisesRegex(BuilderError, label):
+                native_evidence(self.toolkit, self.project)
+        receipt['checks'] = checks
+        publish()
         self.edit('character.json', lambda c: c.__setitem__('hp', 72))
         generate(self.toolkit, self.project)
         self.assertEqual(verify(self.toolkit, self.project)['native']['status'], 'stale')
@@ -499,6 +562,8 @@ class ToolkitTests(unittest.TestCase):
         atomic(self.project / 'design/items.json', encoded(authored_items()))
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
@@ -533,6 +598,7 @@ public static partial class ModEntry
         probe = (self.toolkit / 'builder/templates/NativeProbe.cs.txt').read_text().replace('@NAMESPACE@', 'TestHero')
         probe = probe.replace('@ITEM_PROBE@', (self.toolkit / 'builder/templates/NativeItems.cs.txt').read_text())
         probe = probe.replace('@EVENT_PROBE@', (self.toolkit / 'builder/templates/NativeEvents.cs.txt').read_text())
+        probe = probe.replace('@DIALOGUE_PROBE@', (self.toolkit / 'builder/templates/NativeDialogue.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
