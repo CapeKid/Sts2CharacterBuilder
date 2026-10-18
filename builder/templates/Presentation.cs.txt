@@ -1,0 +1,113 @@
+// Generated optional room atlases. Native controls, transactions and saves remain native.
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Entities.RestSite;
+using MegaCrit.Sts2.Core.Entities.Merchant;
+using MegaCrit.Sts2.Core.Nodes.RestSite;
+using MegaCrit.Sts2.Core.Nodes.Rooms;
+using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
+
+namespace @NAMESPACE@;
+
+public static partial class ModEntry
+{
+    static partial void InitializePresentation() => CharacterPresentation.Initialize();
+}
+
+internal static class CharacterPresentation
+{
+    internal sealed record Actor(Player Player, AnimatedSprite2D Sprite, Node2D NativeBody, JsonElement Data);
+    private static readonly ConditionalWeakTable<Node2D, Actor> Actors = new();
+    internal static readonly JsonElement Rooms = JsonDocument.Parse(@PRESENTATION_JSON@).RootElement.GetProperty("rooms").Clone();
+    private static bool Initialized;
+    internal static void Initialize()
+    {
+        if (Initialized) return;
+        var harmony = new Harmony(@MOD_ID@ + ".room-presentation");
+        void After(Type type, string method, string hook) => harmony.Patch(AccessTools.Method(type, method),
+            postfix: new HarmonyMethod(typeof(CharacterPresentation), hook));
+        if (Rooms.TryGetProperty("rest", out _)) {
+            After(typeof(NRestSiteCharacter), "_Ready", nameof(RestReady));
+            After(typeof(NRestSiteCharacter), nameof(NRestSiteCharacter.FlipX), nameof(RestFacing));
+            After(typeof(NRestSiteRoom), "OnAfterPlayerSelectedRestSiteOption", nameof(RestSelected));
+        }
+        if (Rooms.TryGetProperty("shop", out _)) {
+            After(typeof(NMerchantRoom), "_Ready", nameof(ShopReady));
+            After(typeof(NMerchantCharacter), nameof(NMerchantCharacter.PlayAnimation), nameof(ShopAnimation));
+            After(typeof(MerchantEntry), "InvokePurchaseCompleted", nameof(Purchased));
+        }
+        Initialized = true;
+    }
+    private static void RestReady(NRestSiteCharacter __instance) => Attach(__instance, __instance.Player, "rest");
+    private static void RestFacing(NRestSiteCharacter __instance) => Facing(Get(__instance));
+    private static void RestSelected(NRestSiteRoom __instance, bool __1, ulong __2)
+    {
+        if (__1) foreach (var root in __instance.Characters.Where(r => r.Player.NetId == __2)) Action(Get(root));
+    }
+    private static void ShopReady(NMerchantRoom __instance, List<Player> ____players)
+    {
+        for (int i = 0; i < Math.Min(____players.Count, __instance.PlayerVisuals.Count); i++)
+            Attach(__instance.PlayerVisuals[i], ____players[i], "shop");
+    }
+    private static void ShopAnimation(NMerchantCharacter __instance, bool __1)
+    {
+        if (Get(__instance) is not {} actor) return;
+        Facing(actor);
+        if (__1) actor.Sprite.Play("idle"); else Action(actor);
+    }
+    private static void Purchased(Player ____player)
+    {
+        if (____player.Character is not Character || NMerchantRoom.Instance is not {} room) return;
+        foreach (var visual in room.PlayerVisuals)
+            if (Get(visual) is {} actor && actor.Player == ____player && visual.IsInsideTree()) Action(actor);
+    }
+    internal static Actor? Get(Node2D root) => Actors.TryGetValue(root, out var actor) ? actor : null;
+    internal static void Action(Actor? actor)
+    {
+        if (actor == null || !GodotObject.IsInstanceValid(actor.Sprite)) return;
+        actor.Sprite.Stop(); actor.Sprite.Play("action"); actor.Sprite.SetFrameAndProgress(0, 0);
+    }
+    private static void Facing(Actor? actor)
+    {
+        if (actor == null) return;
+        var sign = actor.NativeBody.Scale.X < 0 ? -1 : 1;
+        var scale = actor.Data.GetProperty("scale_percent").GetInt32() / 100f;
+        var position = actor.Data.GetProperty("position");
+        actor.Sprite.Scale = new Vector2(sign * scale, scale);
+        actor.Sprite.Position = actor.NativeBody.Position + new Vector2(sign * position[0].GetInt32(), position[1].GetInt32());
+    }
+    internal static void Attach(Node2D root, Player player, string room)
+    {
+        if (player.Character is not Character || !Rooms.TryGetProperty(room, out var data) || Actors.TryGetValue(root, out _)) return;
+        var native = root.GetChildren().OfType<Node2D>().FirstOrDefault(n => n.GetClass() == "SpineSprite")
+            ?? throw new InvalidDataException("Native room character has no expected Spine body.");
+        var atlas = ModEntry.Texture(data.GetProperty("atlas").GetString()![7..]);
+        if (atlas.GetWidth() != data.GetProperty("width").GetInt32() || atlas.GetHeight() != data.GetProperty("height").GetInt32())
+            throw new InvalidDataException("Room atlas decoded dimensions differ.");
+        var rows = data.GetProperty("frames").EnumerateArray().ToArray();
+        var textures = rows.Select(r => { var rect = r.GetProperty("rect");
+            return new AtlasTexture { Atlas = atlas, Region = new Rect2(rect[0].GetInt32(), rect[1].GetInt32(), rect[2].GetInt32(), rect[3].GetInt32()) }; }).ToArray();
+        var frames = new SpriteFrames(); frames.RemoveAnimation("default");
+        foreach (var state in data.GetProperty("states").EnumerateObject()) {
+            frames.AddAnimation(state.Name); frames.SetAnimationLoop(state.Name, state.Name == "idle");
+            frames.SetAnimationSpeed(state.Name, state.Value.GetProperty("fps").GetInt32());
+            foreach (var index in state.Value.GetProperty("frames").EnumerateArray()) frames.AddFrame(state.Name, textures[index.GetInt32()]);
+        }
+        var sprite = new AnimatedSprite2D { Name = "BuilderRoomActor", SpriteFrames = frames, Centered = false,
+            TextureFilter = data.GetProperty("filter").GetString() == "nearest" ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.Linear };
+        void Align() {
+            var indices = data.GetProperty("states").GetProperty(sprite.Animation.ToString()).GetProperty("frames");
+            var anchor = rows[indices[Math.Clamp(sprite.Frame, 0, indices.GetArrayLength() - 1)].GetInt32()].GetProperty("anchor");
+            sprite.Offset = new Vector2(-anchor[0].GetInt32(), -anchor[1].GetInt32());
+        }
+        sprite.FrameChanged += Align; sprite.AnimationChanged += Align;
+        sprite.AnimationFinished += () => sprite.Play("idle");
+        var actor = new Actor(player, sprite, native, data); Actors.Add(root, actor);
+        sprite.TreeEntered += () => { Facing(actor); sprite.Play("idle"); Align(); };
+        root.AddChild(sprite); native.Visible = false;
+        Facing(actor); sprite.Play("idle"); Align();
+    }
+}

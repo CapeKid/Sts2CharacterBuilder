@@ -162,6 +162,27 @@ def load_sprites(toolkit, root, config=None):
     config = config or read_json(contained(root, 'character.json'))
     if not config['features']['sprites']:
         raise BuilderError('Custom sprites disabled: clear design/sprites.json')
+    validate_atlas(root, data)
+    return data
+
+
+def load_presentation(toolkit, root, config=None):
+    path = contained(root, 'design/presentation.json')
+    data = read_json(path) if path.exists() else {}
+    if data == {}:
+        return None
+    check_schema(data, read_json(toolkit / 'builder/presentation.schema.json'), '$presentation')
+    config = config or read_json(contained(root, 'character.json'))
+    if not config['features']['presentation']:
+        raise BuilderError('Custom presentation disabled: clear design/presentation.json')
+    if not data['rooms']:
+        raise BuilderError('Presentation needs at least one room, or an empty object for native fallbacks')
+    for actor in data['rooms'].values():
+        validate_atlas(root, actor, loops={'idle'})
+    return data
+
+
+def validate_atlas(root, data, loops=frozenset({'idle', 'victory'})):
     atlas = data['atlas']
     manifest = read_json(contained(root, 'assets/manifest.json'))
     if atlas not in {a['path'] for a in manifest} or Path(atlas).suffix.lower() not in {'.svg', '.png'}:
@@ -194,7 +215,7 @@ def load_sprites(toolkit, root, config=None):
     for name, state in data['states'].items():
         if any(i >= len(data['frames']) for i in state['frames']):
             raise BuilderError('Sprite animation references a missing frame')
-        if name not in {'idle', 'victory'} and len(state['frames']) / state['fps'] > 5:
+        if name not in loops and len(state['frames']) / state['fps'] > 5:
             raise BuilderError('Sprite one-shot duration exceeds five seconds')
     return data
 
@@ -352,6 +373,7 @@ def validate(toolkit, root):
     if not {'assets/icon.svg', 'assets/card.svg'} <= paths:
         raise BuilderError('Required visible fallback assets: assets/icon.svg and assets/card.svg')
     load_sprites(toolkit, root, config)
+    load_presentation(toolkit, root, config)
     load_audio(toolkit, root, config)
     declared = {asset['path'] for asset in manifest}
     for card in cards:
@@ -370,7 +392,7 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json', 'design/audio.json'):
+    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json', 'design/audio.json', 'design/presentation.json'):
         optional = contained(root, relative)
         if optional.exists():
             files.append(optional)

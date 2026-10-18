@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .contracts import BuilderError, contained, digest, encoded, load_audio, load_dialogue, load_events, load_items, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, load_audio, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
 
 STEPS = ['setup', 'mechanics', 'cards', 'art', 'items', 'events', 'dialogue', 'sprites',
          'presentation', 'audio', 'verify', 'balance', 'publish']
@@ -112,6 +112,7 @@ def bootstrap(toolkit, target, args):
         atomic(temporary / 'design/dialogue.json', encoded([]))
         atomic(temporary / 'design/sprites.json', encoded({}))
         atomic(temporary / 'design/audio.json', encoded({}))
+        atomic(temporary / 'design/presentation.json', encoded({}))
         manifest = []
         for kind in ('icon', 'card'):
             data = placeholder(kind, config['color'])
@@ -219,6 +220,12 @@ def generated(toolkit, root):
                             AUDIO_PROPERTIES='\n'.join(f'    public override string {properties[k]} => CharacterAudio.Uri({quote(k)});' for k in audio['cues']))
         template = (toolkit / 'builder/templates/Audio.cs.txt').read_text()
         outputs['src/Generated/Audio.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
+    presentation = load_presentation(toolkit, root, config)
+    if presentation:
+        replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
+                            PRESENTATION_JSON=quote(json.dumps(presentation, ensure_ascii=True)))
+        template = (toolkit / 'builder/templates/Presentation.cs.txt').read_text()
+        outputs['src/Generated/Presentation.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     return outputs
 
 

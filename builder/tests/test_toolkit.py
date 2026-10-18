@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_sprites, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -89,6 +89,14 @@ def authored_audio():
                 for key in ('select', 'transition', 'attack', 'cast', 'death')})
 
 
+def authored_presentation():
+    source = authored_sprites()
+    actor = {k:v for k,v in source.items() if k != 'schema_version'}
+    actor.update(atlas='assets/presentation/room.svg', position=[8, -4],
+                 states=dict(idle=source['states']['idle'], action=source['states']['skill']))
+    return dict(schema_version=1, rooms=dict(rest=copy.deepcopy(actor), shop=copy.deepcopy(actor)))
+
+
 class ToolkitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -127,6 +135,12 @@ class ToolkitTests(unittest.TestCase):
         value = read_json(self.project / path)
         change(value)
         atomic(self.project / path, encoded(value))
+
+    def add_presentation(self):
+        data = sprite_svg()
+        atomic(self.project / 'assets/presentation/room.svg', data)
+        self.edit('assets/manifest.json', lambda rows: rows.append(dict(path='assets/presentation/room.svg', sha256=digest(data), method='original', license='MIT', credit='Original room test actor')))
+        atomic(self.project / 'design/presentation.json', encoded(authored_presentation()))
 
     def add_audio(self):
         data = audio_wav(channels=2)
@@ -530,6 +544,52 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(load_dialogue(self.toolkit, self.project), [])
         generate(self.toolkit, self.project, check=True)
 
+    def test_room_presentation_contract_and_independent_generation(self):
+        self.assertIsNone(load_presentation(self.toolkit, self.project))
+        self.add_presentation()
+        # Room art is independent of the combat sprite feature.
+        self.assertFalse(read_json(self.project / 'character.json')['features']['sprites'])
+        generate(self.toolkit, self.project)
+        self.assertTrue((self.project / 'src/Generated/Presentation.cs').exists())
+        self.assertFalse((self.project / 'src/Generated/Sprites.cs').exists())
+        for mutate in (lambda d: d['rooms']['rest'].update(atlas='assets/icon.svg'),
+                       lambda d: d['rooms']['rest'].update(position=[513, 0]),
+                       lambda d: d['rooms']['rest']['states']['action'].update(fps=1, frames=[0] * 6),
+                       lambda d: d['rooms']['rest']['frames'][0].update(rect=[760, 0, 64, 96]),
+                       lambda d: d['rooms'].update(selection=d['rooms']['rest']),
+                       lambda d: d.update(rooms={})):
+            data = authored_presentation(); mutate(data)
+            atomic(self.project / 'design/presentation.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        data = authored_presentation(); data['rooms'].pop('shop')
+        atomic(self.project / 'design/presentation.json', encoded(data))
+        generate(self.toolkit, self.project)
+        self.assertEqual(set(load_presentation(self.toolkit, self.project)['rooms']), {'rest'})
+        self.edit('character.json', lambda c: c['features'].update(presentation=False))
+        with self.assertRaisesRegex(BuilderError, 'presentation disabled'): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/presentation.json', encoded({}))
+        generate(self.toolkit, self.project)
+        self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
+        (self.project / 'design/presentation.json').unlink()
+        self.assertIsNone(load_presentation(self.toolkit, self.project))
+
+    def test_presentation_fingerprint_packaging_and_ownership(self):
+        self.add_presentation()
+        generate(self.toolkit, self.project)
+        before = input_hash(self.project)
+        self.edit('design/presentation.json', lambda d: d['rooms']['shop'].update(position=[4, 2]))
+        generate(self.toolkit, self.project)
+        self.assertNotEqual(before, input_hash(self.project))
+        self.mock_build()
+        report = stage(self.toolkit, self.project)
+        with zipfile.ZipFile(report['archive']) as archive:
+            self.assertEqual(archive.read('TestHero/assets/presentation/room.svg'), sprite_svg())
+            self.assertNotIn('TestHero/design/presentation.json', archive.namelist())
+        source = self.project / 'src/Generated/Presentation.cs'
+        atomic(source, source.read_bytes() + b'// manual edit\n')
+        atomic(self.project / 'design/presentation.json', encoded({}))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'): generate(self.toolkit, self.project)
+
     def test_audio_contract_generation_and_packaged_bytes(self):
         self.assertIsNone(load_audio(self.toolkit, self.project))
         self.add_audio()
@@ -637,6 +697,7 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'atlas dimensions'): validate(self.toolkit, self.project)
 
     def test_native_evidence_requires_complete_current_coverage(self):
+        self.add_presentation()
         self.add_audio()
         self.add_sprites()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
@@ -648,7 +709,8 @@ class ToolkitTests(unittest.TestCase):
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'presentation-resume')]
+        checks += [dict(check='room-presentation', room=key) for key in authored_presentation()['rooms']]
         checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
         checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
         checks += [dict(check='sprite-fairy-revive', case=key) for key in ('lethal-hit', 'held-death-pose', 'repeated-lethal-hit')]
@@ -712,6 +774,13 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = checks + [dict(check='sprite-fairy-revive', case='lethal-hit')]
         publish()
         with self.assertRaisesRegex(BuilderError, 'Fairy sprite revive'): native_evidence(self.toolkit, self.project)
+        for room_checks in ([c for c in checks if c.get('check') != 'room-presentation'], checks + [dict(check='room-presentation', room='rest')]):
+            receipt['checks'] = room_checks
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'room presentation'): native_evidence(self.toolkit, self.project)
+        receipt['checks'] = [c for c in checks if c.get('check') != 'presentation-resume']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'presentation resume'): native_evidence(self.toolkit, self.project)
         for audio_checks in ([c for c in checks if c.get('check') != 'audio-cue'], checks + [dict(check='audio-cue', cue='attack')]):
             receipt['checks'] = audio_checks
             publish()
@@ -729,6 +798,7 @@ class ToolkitTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
+        self.add_presentation()
         self.add_audio()
         self.add_sprites()
         self.add_portrait()
@@ -774,6 +844,7 @@ public static partial class ModEntry
         probe = probe.replace('@DIALOGUE_PROBE@', (self.toolkit / 'builder/templates/NativeDialogue.cs.txt').read_text())
         probe = probe.replace('@SPRITE_PROBE@', (self.toolkit / 'builder/templates/NativeSprites.cs.txt').read_text())
         probe = probe.replace('@AUDIO_PROBE@', (self.toolkit / 'builder/templates/NativeAudio.cs.txt').read_text())
+        probe = probe.replace('@PRESENTATION_PROBE@', (self.toolkit / 'builder/templates/NativePresentation.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -781,6 +852,7 @@ public static partial class ModEntry
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
+        self.add_presentation()
         self.add_audio()
         self.add_sprites()
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))

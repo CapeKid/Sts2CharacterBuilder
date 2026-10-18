@@ -1,0 +1,118 @@
+    private static async Task Presentation()
+    {
+#if BUILDER_AUTHORED_PRESENTATION
+        var observer = new Harmony(typeof(ModEntry).Namespace + ".native-presentation-observer");
+        observer.Patch(AccessTools.Method(typeof(CharacterPresentation), nameof(CharacterPresentation.Action)),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveRoomAction)));
+        try {
+            var player = Run.Players.Single();
+            var foreignRun = RunState.CreateForTest([Player.CreateForNewRun(ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>(), player.UnlockState, 201)],
+                ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], GameMode.Standard, 0, "BUILDER-PRESENTATION-FOREIGN");
+            foreach (var room in Request.GetProperty("presentation").GetProperty("rooms").EnumerateObject()) {
+                Progress("presentation:" + room.Name);
+                await RunManager.Instance.EnterRoomDebug(room.Name == "rest" ? RoomType.RestSite : RoomType.Shop, showTransition: false);
+                Godot.Node2D root;
+                if (room.Name == "rest") root = RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter>().Single(r => r.Player == player);
+                else root = MegaCrit.Sts2.Core.Nodes.Rooms.NMerchantRoom.Instance!.PlayerVisuals.Single();
+                var actor = CharacterPresentation.Get(root) ?? throw new InvalidDataException("Native room did not attach authored actor.");
+                var sprite = actor.Sprite; var data = room.Value;
+                Require(sprite.IsVisibleInTree() && !actor.NativeBody.Visible && sprite.Animation == "idle", "Room actor/fallback visibility differs.");
+                Require(root.GetChildren().OfType<AnimatedSprite2D>().Count() == 1, "Room actor duplicated.");
+                CharacterPresentation.Attach(root, player, room.Name);
+                Require(root.GetChildren().OfType<AnimatedSprite2D>().Count() == 1, "Repeated attachment duplicated room actor.");
+                var atlas = ModEntry.Texture(data.GetProperty("atlas").GetString()![7..]);
+                var rows = data.GetProperty("frames").EnumerateArray().ToArray();
+                foreach (var state in data.GetProperty("states").EnumerateObject()) {
+                    var name = state.Name; var indices = state.Value.GetProperty("frames").EnumerateArray().Select(i => i.GetInt32()).ToArray();
+                    sprite.Play(name); sprite.Pause();
+                    Require(sprite.SpriteFrames.GetFrameCount(name) == indices.Length && sprite.SpriteFrames.GetAnimationSpeed(name) == state.Value.GetProperty("fps").GetInt32(), "Room frame timing differs.");
+                    Require(sprite.SpriteFrames.GetAnimationLoop(name) == (name == "idle"), "Room loop policy differs.");
+                    var visible = false;
+                    for (int i = 0; i < indices.Length; i++) {
+                        sprite.Frame = i; var row = rows[indices[i]]; var rect = row.GetProperty("rect"); var anchor = row.GetProperty("anchor");
+                        var texture = (AtlasTexture)sprite.SpriteFrames.GetFrameTexture(name, i);
+                        Require(texture.Atlas.GetInstanceId() == atlas.GetInstanceId() && texture.Region == new Rect2(rect[0].GetInt32(), rect[1].GetInt32(), rect[2].GetInt32(), rect[3].GetInt32()), "Room atlas/crop differs.");
+                        Require(sprite.Offset == new Vector2(-anchor[0].GetInt32(), -anchor[1].GetInt32()), "Room frame anchor differs.");
+                        using var pixels = texture.GetImage(); visible |= pixels.GetUsedRect().HasArea();
+                    }
+                    Require(visible, "Room animation has no visible pixels.");
+                }
+                var scale = data.GetProperty("scale_percent").GetInt32() / 100f;
+                Require(Math.Abs(sprite.Scale.X) == scale && sprite.Scale.Y == scale, "Room scale differs.");
+                var sign = actor.NativeBody.Scale.X < 0 ? -1 : 1; var position = data.GetProperty("position");
+                Require(sprite.Position == actor.NativeBody.Position + new Vector2(sign * position[0].GetInt32(), position[1].GetInt32()), "Room position differs.");
+                sprite.Play("idle");
+                if (root is MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter rest) {
+                    var facing = sprite.Scale.X; var origin = sprite.Position;
+                    rest.FlipX(); Require(sprite.Scale.X == -facing, "Rest facing did not follow native flip.");
+                    rest.FlipX(); Require(sprite.Scale.X == facing && sprite.Position == origin, "Repeated rest flip did not restore anchor.");
+                    var foreign = MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter.Create(foreignRun.Players.Single(), 0);
+                    Tree.Root.AddChild(foreign);
+                    Require(CharacterPresentation.Get(foreign) == null && foreign.GetChildren().OfType<Node2D>().Any(n => n.GetClass() == "SpineSprite" && n.Visible), "Foreign rest actor replaced.");
+                    foreign.Free();
+                    var options = RunManager.Instance.RestSiteSynchronizer.GetLocalOptions();
+                    var index = options.ToList().FindIndex(o => o is MegaCrit.Sts2.Core.Entities.RestSite.HealRestSiteOption);
+                    Require(index >= 0, "Native heal option missing.");
+                    RoomActions.Clear();
+                    AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Rooms.NRestSiteRoom), "OnAfterPlayerSelectedRestSiteOption")
+                        .Invoke(RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Rooms.NRestSiteRoom>().Single(), [options[index], false, player.NetId]);
+                    Require(RoomActions.Count == 0, "Rejected rest choice animated actor.");
+                    player.Creature.SetCurrentHpInternal(1);
+                    Require(await RunManager.Instance.RestSiteSynchronizer.ChooseLocalOption(index), "Native heal selection failed.");
+                    Require(player.Creature.CurrentHp > 1 && RoomActions.Contains(actor), "Accepted rest did not heal/animate.");
+                } else {
+                    using var foreign = MegaCrit.Sts2.Core.Assets.PreloadManager.Cache.GetScene(foreignRun.Players.Single().Character.MerchantAnimPath)
+                        .Instantiate<MegaCrit.Sts2.Core.Nodes.Screens.Shops.NMerchantCharacter>();
+                    Tree.Root.AddChild(foreign); CharacterPresentation.Attach(foreign, foreignRun.Players.Single(), "shop");
+                    Require(CharacterPresentation.Get(foreign) == null && foreign.GetChild<Node2D>(0).Visible, "Foreign shop actor replaced.");
+                    Tree.Root.RemoveChild(foreign);
+                    var shop = MegaCrit.Sts2.Core.Nodes.Rooms.NMerchantRoom.Instance!.Room.GetLocalInventory();
+                    var entry = shop.CharacterCardEntries.First();
+                    var card = entry.CreationResult!.Card;
+                    RoomActions.Clear();
+                    await PlayerCmd.LoseGold(player.Gold, player);
+                    Require(!await entry.OnTryPurchaseWrapper(shop) && RoomActions.Count == 0, "Rejected purchase animated actor.");
+                    var cost = entry.Cost; await PlayerCmd.GainGold(cost, player);
+                    Require(await entry.OnTryPurchaseWrapper(shop) && player.Gold == 0 && player.Deck.Cards.Contains(card), "Native purchase result differs.");
+                    Require(RoomActions.Contains(actor), "Successful native purchase did not animate actor.");
+                    await CardPileCmd.RemoveFromDeck(card, true);
+                }
+                await Wait(() => sprite.Animation == "idle" && sprite.IsPlaying(), "Room action did not return to idle.");
+                CharacterPresentation.Action(actor); sprite.Pause(); sprite.Frame = sprite.SpriteFrames.GetFrameCount("action") - 1;
+                CharacterPresentation.Action(actor); Require(sprite.Frame == 0 && sprite.IsPlaying(), "Repeated room action did not restart.");
+                root.RemoveChild(sprite); Tree.Root.AddChild(sprite);
+                Require(sprite.Animation == "idle" && sprite.IsPlaying(), "Reparented room actor did not reset to idle.");
+                Tree.Root.RemoveChild(sprite); root.AddChild(sprite);
+                await Room();
+                await Wait(() => !GodotObject.IsInstanceValid(sprite), "Exited room sprite was retained.");
+                await RunManager.Instance.EnterRoomDebug(room.Name == "rest" ? RoomType.RestSite : RoomType.Shop, showTransition: false);
+                var rebuilt = room.Name == "rest"
+                    ? (Node2D)RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter>().Single(r => r.Player == player)
+                    : MegaCrit.Sts2.Core.Nodes.Rooms.NMerchantRoom.Instance!.PlayerVisuals.Single();
+                Require(CharacterPresentation.Get(rebuilt)?.Sprite.Animation == "idle", "Reconstructed room actor did not start idle.");
+                Checks.Add(new { check = "room-presentation", room = room.Name, asset = data.GetProperty("atlas").GetString(),
+                    nativeAction = true, rejectedActionUnchanged = true, frameAnchors = true, foreignUnchanged = true, reconstructed = true, cleanup = true });
+            }
+            Checks.Add(new { check = "presentation-controls", characterOnly = true, nativeControlsPreserved = true, noSavedState = true });
+        }
+        finally { observer.UnpatchAll(observer.Id); RoomActions.Clear(); }
+#else
+        Checks.Add(new { check = "presentation-controls", skipped = "No authored room presentation; native imagery retained." });
+#endif
+        await Room();
+    }
+
+#if BUILDER_AUTHORED_PRESENTATION
+    private static readonly List<CharacterPresentation.Actor> RoomActions = new();
+    private static void ObserveRoomAction(CharacterPresentation.Actor? actor)
+    {
+        if (actor != null) {
+            Require(actor.Sprite.Animation == "action" && actor.Sprite.Frame == 0, "Room action did not start at first frame.");
+            RoomActions.Add(actor);
+        }
+    }
+    private static IEnumerable<Node> RoomDescendants(Node root)
+    {
+        foreach (var child in root.GetChildren()) { yield return child; foreach (var nested in RoomDescendants(child)) yield return nested; }
+    }
+#endif

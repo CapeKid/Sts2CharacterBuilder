@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -99,7 +99,7 @@ def native_evidence(toolkit, root):
             or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
         raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
     labels = {check.get('check') for check in receipt.get('checks', [])}
-    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls'}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls', 'presentation-controls'}
     played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
@@ -146,6 +146,13 @@ def native_evidence(toolkit, root):
     expected_audio = set(audio['cues']) if audio else set()
     if set(actual) != expected_audio or len(actual) != len(expected_audio):
         raise BuilderError('Native evidence does not cover every audio cue')
+    presentation = load_presentation(toolkit, root, config)
+    rooms = set(presentation['rooms']) if presentation else set()
+    actual = [c.get('room') for c in receipt.get('checks', []) if c.get('check') == 'room-presentation']
+    if set(actual) != rooms or len(actual) != len(rooms):
+        raise BuilderError('Native evidence does not cover every room presentation')
+    if 'rest' in rooms and 'presentation-resume' not in labels:
+        raise BuilderError('Native evidence does not cover presentation resume')
     return receipt
 
 
@@ -258,8 +265,14 @@ def verify(toolkit, root):
         gaps.append('events: enabled without authored data; project-owned extensions require separate native evidence')
     if config['features']['dialogue'] and not load_dialogue(toolkit, root, config):
         gaps.append('dialogue: enabled without authored data; project-owned extensions require separate native evidence')
+    if config['features']['presentation']:
+        gaps.append('presentation: selection/ending/energy/VFX and human room/layout/device review remain separate')
+        presentation = load_presentation(toolkit, root, config)
+        omitted = {'rest', 'shop'} - (set(presentation['rooms']) if presentation else set())
+        if omitted:
+            gaps.append('presentation: native imagery retained for ' + ', '.join(sorted(omitted)))
     if config['features']['sprites']:
-        gaps.append('sprites: rest/shop/selection/ending presentation and human crop/style review remain separate')
+        gaps.append('sprites: human crop/style review and selection/ending presentation remain separate')
         if not load_sprites(toolkit, root, config):
             gaps.append('sprites: enabled without authored data; project-owned extensions require separate native evidence')
     result = dict(kind='structural', toolkit_commit=lock['toolkit_commit'], input_sha256=input_hash(root),

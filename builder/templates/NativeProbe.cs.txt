@@ -153,6 +153,8 @@ internal static class NativeProbe
             var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
             if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            Progress("presentation");
+            await Presentation();
             Progress("audio");
             await Audio();
             Progress("events");
@@ -324,6 +326,14 @@ internal static class NativeProbe
         Require(Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).SequenceEqual(ids), "Deck identities/upgrades changed on resume.");
         Require(Run.Players.Single().Relics.Select(r => r.Id.ToString()).SequenceEqual(relicIds), "Relic identities changed on resume.");
         Require(Run.Players.Single().PotionSlots.Select(p => p?.Id.ToString()).SequenceEqual(potionIds), "Potion slots/identities changed on resume.");
+#if BUILDER_AUTHORED_PRESENTATION
+        if (CharacterPresentation.Rooms.TryGetProperty("rest", out _)) {
+            var restoredRoom = RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter>().Single(r => r.Player == Run.Players.Single());
+            var actor = CharacterPresentation.Get(restoredRoom);
+            Require(actor != null && actor.Sprite.Animation == "idle" && actor.Sprite.IsPlaying() && !actor.NativeBody.Visible, "Resumed rest actor did not reconstruct idle.");
+            Checks.Add(new { check = "presentation-resume", room = "rest", idleAfterLoad = true });
+        }
+#endif
         await Room();
         var focus = Run.Players.Single().Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
 #if BUILDER_AUTHORED_SPRITES
@@ -339,5 +349,6 @@ internal static class NativeProbe
 @DIALOGUE_PROBE@
 @SPRITE_PROBE@
 @AUDIO_PROBE@
+@PRESENTATION_PROBE@
 }
 #endif
