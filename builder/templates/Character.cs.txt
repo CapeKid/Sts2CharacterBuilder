@@ -37,6 +37,7 @@ public static partial class ModEntry
     static partial void InitializeDialogue();
     static partial void InitializeSprites();
     static partial void InitializeAudio();
+    static partial void InitializePresentation();
     public static void Initialize()
     {
 #if BUILDER_NATIVE_TESTS
@@ -54,6 +55,7 @@ public static partial class ModEntry
         InitializeDialogue();
         InitializeSprites();
         InitializeAudio();
+        InitializePresentation();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
     }
     private static void RestoreLocalization(LocManager __instance)

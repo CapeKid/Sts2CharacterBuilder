@@ -105,7 +105,36 @@ internal static class NativeProbe
     {
         var path = Path.Combine(DirectoryPath, name);
         File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(value));
-        File.Move(path + ".tmp", path, true);
+        for (int attempt = 0; ; attempt++) {
+            try { File.Move(path + ".tmp", path, true); return; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) {
+                // Windows readers may briefly deny replacement. Progress is
+                // advisory; a final result must still commit successfully.
+                if (attempt == 9) { if (name == "progress.json") return; throw; }
+                System.Threading.Thread.Sleep(25);
+            }
+        }
+    }
+    private static void CheckProgressIo()
+    {
+        Write("progress.json", new { phase = "io-before" });
+        if (OperatingSystem.IsWindows()) {
+            using (var reader = new FileStream(Path.Combine(DirectoryPath, "progress.json"), FileMode.Open, System.IO.FileAccess.Read, FileShare.Read))
+                Write("progress.json", new { phase = "io-locked" });
+            Write("io-control.json", new { value = "before" });
+            var rejected = false;
+            using (var reader = new FileStream(Path.Combine(DirectoryPath, "io-control.json"), FileMode.Open, System.IO.FileAccess.Read, FileShare.Read)) {
+                try { Write("io-control.json", new { value = "after" }); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { rejected = true; }
+            }
+            Require(rejected, "Locked final-evidence write was silently accepted.");
+            File.Delete(Path.Combine(DirectoryPath, "io-control.json"));
+            File.Delete(Path.Combine(DirectoryPath, "io-control.json.tmp"));
+        }
+        Write("progress.json", new { phase = "io-after" });
+        using var progress = JsonDocument.Parse(File.ReadAllText(Path.Combine(DirectoryPath, "progress.json")));
+        Require(progress.RootElement.GetProperty("phase").GetString() == "io-after", "Progress did not recover after reader release.");
+        Checks.Add(new { check = "native-io", atomicProgress = true, windowsReaderLock = OperatingSystem.IsWindows(), finalEvidenceStrict = true });
     }
     private static void Progress(string phase) => Write("progress.json", new { phase, checks = Checks.Count, failures = Failures.Count });
     private static async Task Wait(Func<bool> condition, string label)
@@ -126,6 +155,7 @@ internal static class NativeProbe
         Started = true; Tree.ProcessFrame -= Begin;
         object? comparators = null;
         try {
+            CheckProgressIo();
             Progress("registration");
             var character = ModelDb.Character<Character>();
             Require(ModelDb.AllCharacters.Contains(character), "Character is absent from native registration.");
@@ -153,6 +183,8 @@ internal static class NativeProbe
             var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
             if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            Progress("presentation");
+            await Presentation();
             Progress("audio");
             await Audio();
             Progress("events");
@@ -339,5 +371,6 @@ internal static class NativeProbe
 @DIALOGUE_PROBE@
 @SPRITE_PROBE@
 @AUDIO_PROBE@
+@PRESENTATION_PROBE@
 }
 #endif

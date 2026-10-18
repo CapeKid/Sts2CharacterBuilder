@@ -66,8 +66,7 @@ Cached atlas textures are shared, while each visual owns its playback state.
 Sprites add no saved state. Native save/resume reconstructs the visuals from the
 character identity and current design; it does not resume an animation mid-frame.
 
-Selection, rest/shop, defeat/victory screens, arms, trails, sounds and other room
-presentation retain disclosed native runtime fallbacks. Different atlases, skeletal
+Rest/shop art can use independent [room presentation data](PRESENTATION.md); short sounds use [audio data](AUDIO.md). Selection, defeat/victory screens, arms, trails and other unconfigured presentation retain disclosed native runtime fallbacks. Different atlases, skeletal
 animation, custom shaders or unusual animation triggers require project-owned
 extensions and their own evidence. Do not combine an extension factory override
 with the generated factory override. No inherited mod identity or artwork ships.
@@ -79,5 +78,5 @@ timing and visible pixels, native triggers/restarts, one-shot completion, death 
 revive, actual combat victory, new-combat reset and save/resume reconstruction.
 Current evidence must also contain all three Fairy revival cases; older sprite
 receipts without this coverage are incomplete.
-Human style/crop/1280x800 review, physical controls, online co-op, other room layouts
+Human style/crop/1280x800 review, physical controls, online co-op, human room layouts
 and final defeat/victory screens remain separate completion gates.
