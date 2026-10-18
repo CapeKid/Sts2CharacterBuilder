@@ -29,6 +29,7 @@
         var other = MegaCrit.Sts2.Core.Localization.LocManager.Languages.First(l => l != language);
         try {
             loc.SetLanguage(other);
+            CheckInlineLocalization();
             foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) {
                 var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == row.GetProperty("ancient").GetString());
                 var visits = row.GetProperty("visit").GetString() == "first" ? 0 : 100;
@@ -37,8 +38,9 @@
                     row.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("text").GetString())), "English fallback after language change differs.");
             }
         } finally { loc.SetLanguage(language); }
+        CheckInlineLocalization();
         Checks.Add(new { check = "dialogue-controls", foreignUnchanged = true, omittedUnchanged = true, untaggedUnchanged = true,
-            lateRepeat = true, firstEver = true, localeSwitchFallback = other });
+            lateRepeat = true, firstEver = true, localeSwitchFallback = other, inlineLocalizationPreserved = true });
         foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) await DialogueEncounter(row);
 #else
         await Task.CompletedTask;
@@ -46,6 +48,21 @@
 #endif
     }
 #if BUILDER_AUTHORED_DIALOGUE
+    private static void CheckInlineLocalization()
+    {
+        Require(new MegaCrit.Sts2.Core.Localization.LocString("characters", ModelDb.Character<Character>().Id.Entry + ".title").Exists(), "Character title lost after locale reload.");
+        foreach (var row in Request.GetProperty("cards").EnumerateArray()) {
+            var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Card_" + row.GetProperty("id").GetString(), true)!;
+            var key = ModelDb.GetId(type).Entry;
+            Require(new MegaCrit.Sts2.Core.Localization.LocString("cards", key + ".title").GetFormattedText() == row.GetProperty("name").GetString(), "Card title lost after locale reload.");
+            Require(new MegaCrit.Sts2.Core.Localization.LocString("cards", key + ".description").Exists(), "Card description lost after locale reload.");
+        }
+        foreach (var (group, table, prefix) in new[] { ("relics", "relics", "Relic_"), ("potions", "potions", "Potion_") })
+            foreach (var row in Request.GetProperty("items").GetProperty(group).EnumerateArray()) {
+                var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + "." + prefix + row.GetProperty("id").GetString(), true)!;
+                Require(new MegaCrit.Sts2.Core.Localization.LocString(table, ModelDb.GetId(type).Entry + ".title").GetFormattedText() == row.GetProperty("name").GetString(), "Item title lost after locale reload.");
+            }
+    }
     private static IEnumerable<Node> DialogueNodes(Node node)
     {
         yield return node;

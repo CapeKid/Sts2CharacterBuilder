@@ -13,4 +13,4 @@ Use a fresh `prepare-lab`/`test-native` lab for selector/fallback controls and e
 
 The generator supports English fallback for eight ordinary Ancients. Custom Ancients, The Architect ending, victory/ending text, translated dialogue and voiced lines require project-owned extensions plus explicit native evidence. Keep unsupported requested content as a gap.
 
-Skip outcome: clear dialogue data, set dialogue false, regenerate and retain native encounter dialogue with no custom patches.
+Skip outcome: clear dialogue data, set dialogue false, regenerate and retain native encounter dialogue with no custom dialogue patches.

@@ -2,7 +2,7 @@
 
 Optional `design/dialogue.json` follows [dialogue.schema.json](dialogue.schema.json).
 Enable `features.dialogue`, author original lines, then run `validate` and `generate`.
-Missing or empty data generates no dialogue file or patches. Enabled empty data
+Missing or empty data generates no dialogue file or dialogue patches. Enabled empty data
 remains an implementation gap. Disabling the feature requires clearing its data.
 
 ```json
@@ -38,7 +38,7 @@ combination. Omitted visits, unconfigured Ancients, anonymous sets and other
 characters retain the native result, including native empty behavior. Rewards,
 Ancient cards, encounters and eligibility are not replaced. English text is
 merged into namespaced keys in the active localization table on selection, so a
-language change still receives the authored English fallback. Translations,
+language change still receives the authored English fallback. The character template also restores this assembly's inline model localization before native locale-change UI listeners run; character/card/item text survives switching languages and switching back. Translations,
 voice/SFX, custom Ancients, victory/ending text and The Architect's separate ending
 dialogue require project-owned extensions and separate evidence.
 
