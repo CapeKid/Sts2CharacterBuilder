@@ -4,6 +4,7 @@ using System.Text.Json;
 using BaseLib.Abstracts;
 using BaseLib.Utils;
 using Godot;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -31,14 +32,37 @@ public static partial class ModEntry
 {
     private static readonly Dictionary<string, Texture2D> Textures = new(StringComparer.Ordinal);
     private static readonly HashSet<string> TextureAssets = new(StringComparer.Ordinal) { @TEXTURE_ASSETS@ };
+    private static bool LocalizationPatched;
     static partial void Configure();
+    static partial void InitializeDialogue();
     public static void Initialize()
     {
 #if BUILDER_NATIVE_TESTS
         NativeProbe.Initialize();
 #endif
+        if (!LocalizationPatched) {
+            // Restore only this assembly's inline text before native UI listeners
+            // observe replacement locale tables. ModelDb.All is empty at startup.
+            new Harmony(@MOD_ID@ + ".character-localization").Patch(
+                AccessTools.Method(typeof(LocManager), "TriggerLocaleChange"),
+                prefix: new HarmonyMethod(typeof(ModEntry), nameof(RestoreLocalization)));
+            LocalizationPatched = true;
+        }
         Configure();
+        InitializeDialogue();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
+    }
+    private static void RestoreLocalization(LocManager __instance)
+    {
+        foreach (var model in ModelDb.All.Where(m => m.GetType().Assembly == typeof(ModEntry).Assembly)) {
+            if (model is not ILocalizationProvider provider || provider.Localization is not {} entries) continue;
+            var table = provider.LocTable ?? (model.Id.Category switch {
+                "CHARACTER" => "characters", "CARD" => "cards", "RELIC" => "relics",
+                "POTION" => "potions", "POWER" => "powers", "EVENT" => "events", _ => null });
+            if (table == null) continue;
+            __instance.GetTable(table).MergeWith(entries.ToDictionary(e => model.Id.Entry + "." + e.Item1,
+                e => BaseLib.Patches.Localization.SimpleLoc.TrySimplify(e.Item2)));
+        }
     }
     public static Texture2D Texture(string name)
     {

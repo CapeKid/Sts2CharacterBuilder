@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .contracts import BuilderError, contained, digest, encoded, load_events, load_items, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, load_dialogue, load_events, load_items, read_json, validate
 
 STEPS = ['setup', 'mechanics', 'cards', 'art', 'items', 'events', 'dialogue', 'sprites',
          'presentation', 'audio', 'verify', 'balance', 'publish']
@@ -109,6 +109,7 @@ def bootstrap(toolkit, target, args):
         atomic(temporary / 'design/cards.json', encoded(starter_cards()))
         atomic(temporary / 'design/items.json', encoded(dict(schema_version=1, relics=[], potions=[])))
         atomic(temporary / 'design/events.json', encoded([]))
+        atomic(temporary / 'design/dialogue.json', encoded([]))
         manifest = []
         for kind in ('icon', 'card'):
             data = placeholder(kind, config['color'])
@@ -196,6 +197,12 @@ def generated(toolkit, root):
             EVENT_TYPES='\n'.join(f'public sealed class Event_{e["id"]} : AuthoredEvent {{ }}' for e in events))
         template = (toolkit / 'builder/templates/Events.cs.txt').read_text()
         outputs['src/Generated/Events.cs'] = re.sub(r'@([A-Z_]+)@', lambda match: replacements[match[1]], template).encode()
+    dialogue = load_dialogue(toolkit, root, config)
+    if dialogue:
+        replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
+                            DIALOGUE_JSON=quote(json.dumps(dialogue, ensure_ascii=True)))
+        template = (toolkit / 'builder/templates/Dialogue.cs.txt').read_text()
+        outputs['src/Generated/Dialogue.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     return outputs
 
 

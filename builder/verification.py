@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_events, load_items, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_dialogue, load_events, load_items, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -99,7 +99,7 @@ def native_evidence(toolkit, root):
             or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
         raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
     labels = {check.get('check') for check in receipt.get('checks', [])}
-    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools'}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls'}
     played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
@@ -123,6 +123,12 @@ def native_evidence(toolkit, root):
         expected_events = {(event['id'], choice['id'] if label == 'authored-event' else None) for event in events
                            for choice in (event['choices'] if label == 'authored-event' else [None])}
         if set(actual) != expected_events or len(actual) != len(expected_events):
+            raise BuilderError(f'Native evidence does not cover every {label} case')
+    dialogue = load_dialogue(toolkit, root, config)
+    for label in ('authored-dialogue', 'dialogue-resume'):
+        actual = [(c.get('ancient'), c.get('visit')) for c in receipt.get('checks', []) if c.get('check') == label]
+        expected_dialogue = {(r['ancient'], r['visit']) for r in dialogue}
+        if set(actual) != expected_dialogue or len(actual) != len(expected_dialogue):
             raise BuilderError(f'Native evidence does not cover every {label} case')
     return receipt
 
@@ -228,11 +234,13 @@ def verify(toolkit, root):
     gaps = ['Native card lifecycle, targeting, power/resource, save/resume and room presentation unverified',
             'Full-pool native comparator and human balance playtests unperformed',
             'Physical Deck/controller and co-op unverified', 'Workshop upload/download verification unperformed']
-    for feature in ('dialogue', 'sprites', 'audio'):
+    for feature in ('sprites', 'audio'):
         if config['features'][feature]:
             gaps.append(f'{feature}: requires project-owned implementation and native evidence; generator does not implement it')
     if config['features']['events'] and not load_events(toolkit, root, config):
         gaps.append('events: enabled without authored data; project-owned extensions require separate native evidence')
+    if config['features']['dialogue'] and not load_dialogue(toolkit, root, config):
+        gaps.append('dialogue: enabled without authored data; project-owned extensions require separate native evidence')
     result = dict(kind='structural', toolkit_commit=lock['toolkit_commit'], input_sha256=input_hash(root),
                   source_sha256=source_hash(root), structural='pass', gaps=gaps, release_ready=False)
     try:

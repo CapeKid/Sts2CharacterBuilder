@@ -1,0 +1,65 @@
+// Generated original project dialogue; no new saved state or reward hooks.
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Ancients;
+using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Models;
+
+namespace @NAMESPACE@;
+
+public static partial class ModEntry
+{
+    static partial void InitializeDialogue() => CharacterDialogue.Initialize();
+}
+
+internal static class CharacterDialogue
+{
+    private sealed record Identity(string Entry);
+    private static readonly ConditionalWeakTable<AncientDialogueSet, Identity> Sets = new();
+    private static readonly JsonElement Rows = JsonDocument.Parse(@DIALOGUE_JSON@).RootElement.Clone();
+    private static bool Initialized;
+    internal static void Initialize()
+    {
+        if (Initialized) return;
+        var harmony = new Harmony(@MOD_ID@ + ".character-dialogue");
+        try {
+            harmony.Patch(AccessTools.PropertyGetter(typeof(AncientEventModel), nameof(AncientEventModel.DialogueSet)),
+                postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Identify)));
+            harmony.Patch(AccessTools.Method(typeof(AncientDialogueSet), nameof(AncientDialogueSet.GetValidDialogues)),
+                postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Select)));
+            Initialized = true;
+        } catch { harmony.UnpatchAll(harmony.Id); throw; }
+    }
+    private static void Identify(AncientEventModel __instance, AncientDialogueSet __result) =>
+        Sets.GetValue(__result, _ => new Identity(__instance.Id.Entry));
+
+    private static void Select(AncientDialogueSet __instance, ModelId characterId, int charVisits,
+        ref IEnumerable<AncientDialogue> __result)
+    {
+        if (characterId != ModelDb.Character<Character>().Id || !Sets.TryGetValue(__instance, out var identity)) return;
+        var visit = charVisits <= 0 ? "first" : "repeat";
+        foreach (var row in Rows.EnumerateArray()) {
+            if (row.GetProperty("ancient").GetString() != identity.Entry || row.GetProperty("visit").GetString() != visit) continue;
+            var lines = row.GetProperty("lines").EnumerateArray().ToArray();
+            var dialogue = new AncientDialogue(lines.Select(_ => "").ToArray()) { VisitIndex = charVisits <= 0 ? 0 : 1, IsRepeating = charVisits > 0 };
+            var translations = new Dictionary<string, string>();
+            for (var i = 0; i < lines.Length; i++) {
+                var key = @MOD_ID@ + ".BUILDER_DIALOGUE." + identity.Entry + "." + visit + "." + i;
+                var line = dialogue.Lines[i];
+                translations[key] = lines[i].GetProperty("text").GetString()!;
+                line.Speaker = Enum.Parse<AncientDialogueSpeaker>(lines[i].GetProperty("speaker").GetString()!);
+                line.LineText = new LocString("ancients", key);
+                if (i < lines.Length - 1) {
+                    translations[key + ".next"] = lines[i].TryGetProperty("next", out var next) ? next.GetString()! : "Continue";
+                    line.NextButtonText = new LocString("ancients", key + ".next");
+                }
+            }
+            // English fallback is installed into the current table on each selection,
+            // including after the player changes language. Only project-owned keys.
+            LocManager.Instance.GetTable("ancients").MergeWith(translations);
+            __result = [dialogue];
+            return;
+        }
+    }
+}

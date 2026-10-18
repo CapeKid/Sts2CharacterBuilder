@@ -1,0 +1,127 @@
+    private static async Task Dialogue()
+    {
+#if BUILDER_AUTHORED_DIALOGUE
+        var own = ModelDb.Character<Character>().Id;
+        var foreign = ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>().Id;
+        // A native result is compared by reference with our postfix disabled only
+        // for this isolated test. No production fallback algorithm is duplicated.
+        var method = AccessTools.Method(typeof(AncientDialogueSet), nameof(AncientDialogueSet.GetValidDialogues));
+        var patch = AccessTools.Method(typeof(CharacterDialogue), "Select");
+        var harmony = new Harmony(Harmony.GetPatchInfo(method).Postfixes.Single(p => p.PatchMethod == patch).owner);
+        foreach (var ancient in ModelDb.AllAncients) {
+            var set = ancient.DialogueSet;
+            foreach (var character in new[] { own, foreign }) foreach (var visits in new[] { 0, 1, 100 }) foreach (var allow in new[] { false, true }) {
+                var authored = character == own && Request.GetProperty("dialogue").EnumerateArray().Any(r =>
+                    r.GetProperty("ancient").GetString() == ancient.Id.Entry && r.GetProperty("visit").GetString() == (visits == 0 ? "first" : "repeat"));
+                var actual = set.GetValidDialogues(character, visits, 200, allow).ToArray();
+                if (authored) { Require(actual.Length == 1 && actual[0].Lines.All(l => l.LineText!.LocEntryKey.Contains(".BUILDER_DIALOGUE.")), "Authored selector missed."); continue; }
+                harmony.Unpatch(method, patch);
+                AncientDialogue[] expected;
+                try { expected = set.GetValidDialogues(character, visits, 200, allow).ToArray(); }
+                finally { harmony.Patch(method, postfix: new HarmonyMethod(patch)); }
+                Require(actual.SequenceEqual(expected), "Native dialogue fallback changed.");
+            }
+        }
+        var unknown = new AncientDialogueSet { FirstVisitEverDialogue = null, CharacterDialogues = new(), AgnosticDialogues = [] };
+        Require(!unknown.GetValidDialogues(own, 0, 0, false).Any(), "Untagged empty set changed.");
+        var loc = MegaCrit.Sts2.Core.Localization.LocManager.Instance;
+        var language = loc.Language;
+        var other = MegaCrit.Sts2.Core.Localization.LocManager.Languages.First(l => l != language);
+        try {
+            loc.SetLanguage(other);
+            CheckInlineLocalization();
+            foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) {
+                var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == row.GetProperty("ancient").GetString());
+                var visits = row.GetProperty("visit").GetString() == "first" ? 0 : 100;
+                var selected = ancient.DialogueSet.GetValidDialogues(own, visits, 0, false).Single();
+                Require(selected.Lines.Select(l => l.LineText!.GetFormattedText()).SequenceEqual(
+                    row.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("text").GetString())), "English fallback after language change differs.");
+            }
+        } finally { loc.SetLanguage(language); }
+        CheckInlineLocalization();
+        Checks.Add(new { check = "dialogue-controls", foreignUnchanged = true, omittedUnchanged = true, untaggedUnchanged = true,
+            lateRepeat = true, firstEver = true, localeSwitchFallback = other, inlineLocalizationPreserved = true });
+        foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) await DialogueEncounter(row);
+#else
+        await Task.CompletedTask;
+        Checks.Add(new { check = "dialogue-controls", skipped = true, reason = "No authored dialogue" });
+#endif
+    }
+#if BUILDER_AUTHORED_DIALOGUE
+    private static void CheckInlineLocalization()
+    {
+        Require(new MegaCrit.Sts2.Core.Localization.LocString("characters", ModelDb.Character<Character>().Id.Entry + ".title").Exists(), "Character title lost after locale reload.");
+        foreach (var row in Request.GetProperty("cards").EnumerateArray()) {
+            var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Card_" + row.GetProperty("id").GetString(), true)!;
+            var key = ModelDb.GetId(type).Entry;
+            Require(new MegaCrit.Sts2.Core.Localization.LocString("cards", key + ".title").GetFormattedText() == row.GetProperty("name").GetString(), "Card title lost after locale reload.");
+            Require(new MegaCrit.Sts2.Core.Localization.LocString("cards", key + ".description").Exists(), "Card description lost after locale reload.");
+        }
+        foreach (var (group, table, prefix) in new[] { ("relics", "relics", "Relic_"), ("potions", "potions", "Potion_") })
+            foreach (var row in Request.GetProperty("items").GetProperty(group).EnumerateArray()) {
+                var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + "." + prefix + row.GetProperty("id").GetString(), true)!;
+                Require(new MegaCrit.Sts2.Core.Localization.LocString(table, ModelDb.GetId(type).Entry + ".title").GetFormattedText() == row.GetProperty("name").GetString(), "Item title lost after locale reload.");
+            }
+    }
+    private static IEnumerable<Node> DialogueNodes(Node node)
+    {
+        yield return node;
+        foreach (var child in node.GetChildren()) foreach (var descendant in DialogueNodes(child)) yield return descendant;
+    }
+    private static NAncientEventLayout? DialogueLayout() => DialogueNodes(Tree.Root).OfType<NAncientEventLayout>().SingleOrDefault(l => l.IsVisibleInTree());
+    private static List<AncientDialogueLine> DialogueLines(NAncientEventLayout layout) =>
+        (List<AncientDialogueLine>)AccessTools.Field(typeof(NAncientEventLayout), "_dialogue").GetValue(layout)!;
+    private static int DialogueIndex(NAncientEventLayout layout) => (int)AccessTools.Field(typeof(NAncientEventLayout), "_currentDialogueLine").GetValue(layout)!;
+    private static async Task CheckDialogue(JsonElement row, bool advance)
+    {
+        var rows = row.GetProperty("lines").EnumerateArray().ToArray();
+        await Wait(() => DialogueLayout() is {} l && DialogueLines(l).Count == rows.Length, "Ancient layout dialogue missing.");
+        var layout = DialogueLayout()!; var lines = DialogueLines(layout);
+        for (var i = 0; i < rows.Length; i++) {
+            Require(lines[i].LineText!.GetFormattedText() == rows[i].GetProperty("text").GetString()
+                && lines[i].Speaker.ToString() == rows[i].GetProperty("speaker").GetString(), "Visible dialogue text/speaker differs.");
+            if (i < rows.Length - 1) Require(lines[i].NextButtonText!.GetFormattedText() ==
+                (rows[i].TryGetProperty("next", out var next) ? next.GetString() : "Continue"), "Dialogue next label differs.");
+        }
+        if (!advance) return;
+        Require(DialogueIndex(layout) == 0, "Dialogue did not start on first line.");
+        for (var i = 1; i < rows.Length; i++) {
+            var hitbox = (NAncientDialogueHitbox)AccessTools.Field(typeof(NAncientEventLayout), "_dialogueHitbox").GetValue(layout)!;
+            await Wait(() => hitbox.IsVisibleInTree() && hitbox.IsEnabled, "Dialogue advance unavailable.");
+            Require(!string.IsNullOrEmpty(hitbox.GetHotkey()), "Native dialogue hotkey missing.");
+            hitbox.EmitSignal(NClickableControl.SignalName.Released, hitbox);
+            var index = i;
+            await Wait(() => DialogueIndex(layout) == index, "Dialogue advance failed.");
+        }
+        await Wait(() => layout.OptionButtons.Any(b => b.IsVisibleInTree() && b.IsEnabled), "Ancient reward options unavailable after dialogue.");
+    }
+    private static async Task DialogueEncounter(JsonElement row)
+    {
+        var entry = row.GetProperty("ancient").GetString()!; var visit = row.GetProperty("visit").GetString()!;
+        Progress("dialogue:" + entry + "/" + visit);
+        await NGame.Instance!.ReturnToMainMenu();
+        var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == entry);
+        var stats = SaveManager.Instance.Progress.GetOrCreateAncientStats(ancient.Id);
+        stats.CharStats.Clear();
+        stats.CharStats.Add(new AncientCharacterStats { Character = ModelDb.Character<Character>().Id, Losses = visit == "first" ? 0 : 100 });
+        await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
+            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-DIALOGUE-" + entry + visit, GameMode.Standard, 0);
+        Run.ExtraFields.StartedWithNeow = true;
+        var rooms = (RoomSet)AccessTools.Field(typeof(ActModel), "_rooms").GetValue(Run.Act)!;
+        rooms.Ancient = ancient;
+        var point = Run.Map.StartingMapPoint; point.PointType = MegaCrit.Sts2.Core.Map.MapPointType.Ancient;
+        var rewards = ancient.AllPossibleOptions.Select(o => o.TextKey).ToArray();
+        await RunManager.Instance.EnterMapCoord(point.coord);
+        await CheckDialogue(row, true);
+        Require(rewards.SequenceEqual(ancient.AllPossibleOptions.Select(o => o.TextKey)), "Ancient reward catalog changed.");
+        Checks.Add(new { check = "authored-dialogue", ancient = entry, visit, visibleText = true, nativeAdvance = true, rewardsAvailable = true });
+        await NGame.Instance.ReturnToMainMenu();
+        var saved = SaveManager.Instance.LoadRunSave();
+        Require(saved.Success && saved.SaveData != null, "Ancient checkpoint missing.");
+        var restored = RunState.FromSerializable(saved.SaveData!);
+        await RunManager.Instance.SetUpSavedSingleplayer(restored, saved.SaveData!);
+        await NGame.Instance.LoadRun(restored, saved.SaveData!.PreFinishedRoom);
+        await CheckDialogue(row, true);
+        Checks.Add(new { check = "dialogue-resume", ancient = entry, visit, nativeCheckpoint = true, replayFromStart = true });
+    }
+#endif
