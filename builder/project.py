@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-from .contracts import BuilderError, contained, digest, encoded, load_dialogue, load_events, load_items, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, load_audio, load_dialogue, load_events, load_items, load_sprites, read_json, validate
 
 STEPS = ['setup', 'mechanics', 'cards', 'art', 'items', 'events', 'dialogue', 'sprites',
          'presentation', 'audio', 'verify', 'balance', 'publish']
@@ -111,6 +111,7 @@ def bootstrap(toolkit, target, args):
         atomic(temporary / 'design/events.json', encoded([]))
         atomic(temporary / 'design/dialogue.json', encoded([]))
         atomic(temporary / 'design/sprites.json', encoded({}))
+        atomic(temporary / 'design/audio.json', encoded({}))
         manifest = []
         for kind in ('icon', 'card'):
             data = placeholder(kind, config['color'])
@@ -209,6 +210,15 @@ def generated(toolkit, root):
         replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']), SPRITES_JSON=quote(json.dumps(sprites, ensure_ascii=True)))
         template = (toolkit / 'builder/templates/Sprites.cs.txt').read_text()
         outputs['src/Generated/Sprites.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
+    audio = load_audio(toolkit, root, config)
+    if audio:
+        properties = {'select': 'CharacterSelectSfx', 'transition': 'CharacterTransitionSfx',
+                      'attack': 'CustomAttackSfx', 'cast': 'CustomCastSfx', 'death': 'CustomDeathSfx'}
+        replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
+                            AUDIO_JSON=quote(json.dumps(audio, ensure_ascii=True)),
+                            AUDIO_PROPERTIES='\n'.join(f'    public override string {properties[k]} => CharacterAudio.Uri({quote(k)});' for k in audio['cues']))
+        template = (toolkit / 'builder/templates/Audio.cs.txt').read_text()
+        outputs['src/Generated/Audio.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     return outputs
 
 

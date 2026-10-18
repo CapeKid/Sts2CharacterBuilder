@@ -199,6 +199,53 @@ def load_sprites(toolkit, root, config=None):
     return data
 
 
+def load_audio(toolkit, root, config=None):
+    path = contained(root, 'design/audio.json')
+    data = read_json(path) if path.exists() else {}
+    if data == {}:
+        return None
+    check_schema(data, read_json(toolkit / 'builder/audio.schema.json'), '$audio')
+    config = config or read_json(contained(root, 'character.json'))
+    if not config['features']['audio']:
+        raise BuilderError('Custom audio disabled: clear design/audio.json')
+    if not data['cues']:
+        raise BuilderError('Audio needs at least one cue, or an empty object to retain native sounds')
+    declared = {a['path'] for a in read_json(contained(root, 'assets/manifest.json'))}
+    for cue in data['cues'].values():
+        asset = cue['asset']
+        if asset not in declared or Path(asset).suffix.lower() != '.wav':
+            raise BuilderError('Audio cue must reference an exact declared PCM WAV asset')
+        audio_pcm(contained(root, asset).read_bytes())
+    return data
+
+
+def audio_pcm(raw):
+    """Bounded RIFF PCM16 clips; walk chunks rather than assume a 44-byte header."""
+    import struct
+    if len(raw) < 12 or raw[:4] != b'RIFF' or raw[8:12] != b'WAVE' or int.from_bytes(raw[4:8], 'little') + 8 != len(raw):
+        raise BuilderError('Audio needs a complete RIFF WAV')
+    offset, chunks = 12, {}
+    while offset + 8 <= len(raw):
+        kind, size = raw[offset:offset + 4], int.from_bytes(raw[offset + 4:offset + 8], 'little')
+        end = offset + 8 + size
+        if end + size % 2 > len(raw) or kind in chunks:
+            raise BuilderError('Truncated or duplicate WAV chunk')
+        chunks[kind] = raw[offset + 8:end]
+        offset = end + size % 2
+    fmt, pcm = chunks.get(b'fmt ', b''), chunks.get(b'data', b'')
+    if offset != len(raw) or len(fmt) not in (16, 18) or not pcm:
+        raise BuilderError('Audio needs PCM format and sample data')
+    codec, channels, rate, byte_rate, align, bits = struct.unpack('<HHIIHH', fmt[:16])
+    if (codec != 1 or channels not in (1, 2) or not 8000 <= rate <= 48000 or bits != 16
+            or align != channels * 2 or byte_rate != rate * align or len(pcm) % align
+            or len(pcm) > rate * align * 10 or (len(fmt) == 18 and fmt[16:] != b'\0\0')):
+        raise BuilderError('Audio supports 1-2 channels, 8-48 kHz PCM16 and at most ten seconds')
+    samples = struct.unpack('<' + 'h' * (len(pcm) // 2), pcm)
+    if not any(samples) or min(samples) == -32768 or max(samples) == 32767:
+        raise BuilderError('Audio samples are silent or reach clipping endpoints')
+    return pcm
+
+
 def validate(toolkit, root):
     config = read_json(contained(root, 'character.json'))
     check_schema(config, read_json(toolkit / 'builder/character.schema.json'))
@@ -305,6 +352,7 @@ def validate(toolkit, root):
     if not {'assets/icon.svg', 'assets/card.svg'} <= paths:
         raise BuilderError('Required visible fallback assets: assets/icon.svg and assets/card.svg')
     load_sprites(toolkit, root, config)
+    load_audio(toolkit, root, config)
     declared = {asset['path'] for asset in manifest}
     for card in cards:
         if 'portrait' not in card:
@@ -322,7 +370,7 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json'):
+    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json', 'design/audio.json'):
         optional = contained(root, relative)
         if optional.exists():
             files.append(optional)
