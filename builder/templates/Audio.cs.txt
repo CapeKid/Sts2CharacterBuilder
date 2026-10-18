@@ -1,0 +1,111 @@
+// Generated optional, short PCM character cues. Native sounds pass through.
+using System.Text.Json;
+using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Nodes.Audio;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Animation;
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Nodes.Combat;
+
+namespace @NAMESPACE@;
+
+public static partial class ModEntry
+{
+    static partial void InitializeAudio() => CharacterAudio.Initialize();
+}
+
+public sealed partial class Character
+{
+@AUDIO_PROPERTIES@
+}
+
+internal static class CharacterAudio
+{
+    internal sealed record Voice(AudioStreamPlayer Player, float Gain);
+    internal static readonly List<Voice> Voices = new();
+    internal static readonly JsonElement Cues = JsonDocument.Parse(@AUDIO_JSON@).RootElement.GetProperty("cues").Clone();
+    private static readonly Dictionary<string, AudioStreamWav> Streams = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> Routes = Cues.EnumerateObject().ToDictionary(r => Uri(r.Name), r => r.Name, StringComparer.Ordinal);
+    private static bool Initialized;
+    private static bool Watching;
+    private static SceneTree Tree => (SceneTree)Engine.GetMainLoop();
+    internal static string Uri(string cue) => "stscb-audio://" + @MOD_ID@ + "/" + cue;
+    internal static void Initialize()
+    {
+        if (Initialized) return;
+        var harmony = new Harmony(@MOD_ID@ + ".character-audio");
+        foreach (var types in new[] { new[] { typeof(string), typeof(float) }, new[] { typeof(string), typeof(Dictionary<string, float>), typeof(float) } })
+            harmony.Patch(AccessTools.Method(typeof(NAudioManager), nameof(NAudioManager.PlayOneShot), types),
+                prefix: new HarmonyMethod(typeof(CharacterAudio), nameof(BeforeSound)));
+        if (Cues.TryGetProperty("death", out _))
+            harmony.Patch(AccessTools.Method(typeof(NCreature), nameof(NCreature.StartDeathAnim)),
+                prefix: new HarmonyMethod(typeof(CharacterAudio), nameof(DeathSound)));
+        Initialized = true;
+    }
+    private static void DeathSound(NCreature __instance, CreatureAnimator? ____spineAnimator)
+    {
+        // v0.111.0 emits the player's death sound only inside its Spine branch.
+        // A loose atlas has no Spine animator. Match the native repeat guard and
+        // supply only our configured death cue; leave native/foreign actors alone.
+        if (____spineAnimator == null && __instance.Entity.Player is {} player && player.Character is Character
+            && __instance.DeathAnimationTask is not { IsCompleted: false }) SfxCmd.PlayDeath(player);
+    }
+    private static bool BeforeSound(object[] __args) => !Play((string)__args[0], (float)__args[^1]);
+    internal static AudioStreamWav Stream(string cue)
+    {
+        var asset = Cues.GetProperty(cue).GetProperty("asset").GetString()!;
+        if (Streams.TryGetValue(asset, out var stream) && GodotObject.IsInstanceValid(stream)) return stream;
+        var bytes = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, asset));
+        // The native decoder handles RIFF chunks, including metadata preceding data.
+        stream = AudioStreamWav.LoadFromBuffer(bytes, new Godot.Collections.Dictionary {
+            ["force/8_bit"] = false, ["force/mono"] = false, ["edit/normalize"] = false,
+            ["edit/trim"] = false, ["compress/mode"] = 0, ["edit/loop_mode"] = 0 });
+        if (stream == null || stream.Format != AudioStreamWav.FormatEnum.Format16Bits || stream.Data.Length == 0)
+            throw new InvalidDataException("Invalid character audio: " + asset);
+        stream.LoopMode = AudioStreamWav.LoopModeEnum.Disabled;
+        return Streams[asset] = stream;
+    }
+    internal static float Unit(float value) => float.IsFinite(value) ? Math.Clamp(value, 0f, 1f) : 0f;
+    internal static float Mix(float gain)
+    {
+        var settings = SaveManager.Instance.SettingsSave;
+        return gain * MathF.Pow(Unit(settings.VolumeMaster), 2) * MathF.Pow(Unit(settings.VolumeSfx), 2);
+    }
+    internal static bool Play(string path, float volume)
+    {
+        if (!Routes.TryGetValue(path, out var cue)) return false;
+        // One-shot voices belong to this mod. Bound overlap and retire oldest first.
+        while (Voices.Count >= 8) Retire(Voices[0]);
+        var gain = Unit(volume) * Cues.GetProperty(cue).GetProperty("gain_percent").GetInt32() / 100f;
+        var player = new AudioStreamPlayer { Stream = Stream(cue), VolumeLinear = Mix(gain) };
+        var voice = new Voice(player, gain);
+        Tree.Root.AddChild(player);
+        Voices.Add(voice);
+        player.Finished += () => Retire(voice);
+        player.TreeExiting += () => { Voices.Remove(voice); Unwatch(); };
+        if (!Watching) { Tree.ProcessFrame += Update; Watching = true; }
+        player.Play();
+        return true;
+    }
+    internal static void Retire(Voice voice)
+    {
+        Voices.Remove(voice);
+        if (GodotObject.IsInstanceValid(voice.Player) && !voice.Player.IsQueuedForDeletion()) {
+            voice.Player.Stop(); voice.Player.QueueFree();
+        }
+        Unwatch();
+    }
+    private static void Unwatch()
+    {
+        if (Watching && Voices.Count == 0) { Tree.ProcessFrame -= Update; Watching = false; }
+    }
+    private static void Update()
+    {
+        foreach (var voice in Voices.ToArray()) {
+            if (!GodotObject.IsInstanceValid(voice.Player) || voice.Player.IsQueuedForDeletion()) { Voices.Remove(voice); continue; }
+            voice.Player.VolumeLinear = Mix(voice.Gain);
+        }
+        Unwatch();
+    }
+}

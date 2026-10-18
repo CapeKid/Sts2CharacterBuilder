@@ -153,6 +153,8 @@ internal static class NativeProbe
             var initialFocus = player.Creature.Powers.FirstOrDefault(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower");
             if (Request.GetProperty("focus_starter").GetBoolean()) Require(initialFocus?.Amount == 1, "Starter relic did not grant exactly one Focus.");
             Checks.Add(new { check = "starter-trigger", focus = initialFocus?.Amount ?? 0 });
+            Progress("audio");
+            await Audio();
             Progress("events");
             await Events();
             Progress("dialogue");
@@ -336,5 +338,6 @@ internal static class NativeProbe
 @EVENT_PROBE@
 @DIALOGUE_PROBE@
 @SPRITE_PROBE@
+@AUDIO_PROBE@
 }
 #endif

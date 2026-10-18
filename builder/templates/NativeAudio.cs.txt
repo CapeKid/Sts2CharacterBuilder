@@ -1,0 +1,109 @@
+    private static async Task Audio()
+    {
+#if BUILDER_AUTHORED_AUDIO
+        await Room();
+        var character = Run.Players.Single().Character;
+        var creature = Run.Players.Single().Creature;
+        var settings = SaveManager.Instance.SettingsSave;
+        var master = settings.VolumeMaster; var sfx = settings.VolumeSfx;
+        var manager = MegaCrit.Sts2.Core.Nodes.Audio.NAudioManager.Instance;
+        var observer = new Harmony(typeof(ModEntry).Namespace + ".native-audio-observer");
+        observer.Patch(AccessTools.Method(typeof(CharacterAudio), nameof(CharacterAudio.Play)),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveAudio)));
+        try {
+            foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+            settings.VolumeMaster = 0.5f; settings.VolumeSfx = 0.4f;
+            foreach (var cue in Request.GetProperty("audio").GetProperty("cues").EnumerateObject()) {
+                Progress("audio:" + cue.Name);
+                var stream = CharacterAudio.Stream(cue.Name);
+                var path = Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, cue.Value.GetProperty("asset").GetString()!);
+                var raw = File.ReadAllBytes(path); byte[] pcm = []; int rate = 0, channels = 0;
+                for (int offset = 12; offset + 8 <= raw.Length;) {
+                    var size = BitConverter.ToInt32(raw, offset + 4);
+                    var kind = System.Text.Encoding.ASCII.GetString(raw, offset, 4);
+                    if (kind == "fmt ") { channels = BitConverter.ToInt16(raw, offset + 10); rate = BitConverter.ToInt32(raw, offset + 12); }
+                    if (kind == "data") pcm = raw[(offset + 8)..(offset + 8 + size)];
+                    offset += 8 + size + size % 2;
+                }
+                Require(stream.Data.SequenceEqual(pcm) && stream.MixRate == rate && stream.Stereo == (channels == 2), "Decoded audio PCM/rate/channels differ.");
+                Require(stream.LoopMode == AudioStreamWav.LoopModeEnum.Disabled && ReferenceEquals(stream, CharacterAudio.Stream(cue.Name)), "Audio loops or misses cache.");
+                var route = cue.Name switch {
+                    "select" => character.CharacterSelectSfx, "transition" => character.CharacterTransitionSfx,
+                    "attack" => character.AttackSfx, "cast" => character.CastSfx, "death" => character.DeathSfx,
+                    _ => throw new InvalidDataException("Unknown audio cue.") };
+                Require(route == CharacterAudio.Uri(cue.Name), "Native character getter did not select authored sound.");
+                // Exercise native animation/death commands for their actual SFX calls.
+                // Selection/transition use the native getter and manager, without UI claims.
+                AudioPlayed.Clear();
+                if (cue.Name is "attack" or "cast") await CreatureCmd.TriggerAnim(creature, cue.Name == "attack" ? "Attack" : "Cast", 0f);
+                else if (cue.Name == "death") { creature.GetCreatureNode()!.StartDeathAnim(false); }
+                else manager.PlayOneShot(route, 0.5f);
+                Require(AudioPlayed.SequenceEqual(new[] { route }), "Native SFX command did not create exactly one authored voice: " + cue.Name);
+                foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+                manager.PlayOneShot(route, new Dictionary<string, float>(), 0.5f);
+                Require(CharacterAudio.Voices.Count == 1, "Parameterized native overload duplicated or lost a voice.");
+                var active = CharacterAudio.Voices.Single();
+                var gain = cue.Value.GetProperty("gain_percent").GetInt32() / 100f;
+                Require(Math.Abs(active.Player.VolumeLinear - gain * 0.5f * 0.25f * 0.16f) < 0.00001f, "Audio gain differs from native volume curve.");
+                foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+                if (cue.Name == "death") creature.GetCreatureNode()!.StartReviveAnim();
+                Checks.Add(new { check = "audio-cue", cue = cue.Name, pcmBytes = pcm.Length, rate, channels, cached = true, nativeRoute = true });
+            }
+            var first = CharacterAudio.Cues.EnumerateObject().First().Name;
+            var uri = CharacterAudio.Uri(first);
+            Require(!CharacterAudio.Play("stscb-audio://other/attack", 1f) && !CharacterAudio.Play("event:/unconfigured", 1f), "Foreign/native audio intercepted.");
+            Require(!ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>().AttackSfx.StartsWith("stscb-audio://"), "Foreign character sound replaced.");
+            manager.PlayOneShot(uri, 1f);
+            var live = CharacterAudio.Voices.Single();
+            // Keep volume/cleanup controls independent of an authored clip's
+            // duration. The PCM checks above still use the exact shipped bytes.
+            using var control = new AudioStreamWav { Format = AudioStreamWav.FormatEnum.Format16Bits,
+                MixRate = 16000, Data = new byte[64000] };
+            live.Player.Stream = control; live.Player.Play();
+            settings.VolumeMaster = 0;
+            await ToSignalFrame();
+            Require(live.Player.VolumeLinear == 0, "Live voice ignored master mute.");
+            settings.VolumeMaster = 1; settings.VolumeSfx = 0;
+            await ToSignalFrame();
+            Require(live.Player.VolumeLinear == 0, "Live voice ignored SFX mute.");
+            settings.VolumeSfx = 1;
+            await ToSignalFrame();
+            Require(Math.Abs(live.Player.VolumeLinear - live.Gain) < 0.00001f, "Live voice did not unmute.");
+            for (int i = 0; i < 12; i++) {
+                manager.PlayOneShot(uri, 2f);
+                CharacterAudio.Voices[^1].Player.Stream = control; CharacterAudio.Voices[^1].Player.Play();
+            }
+            Require(CharacterAudio.Voices.Count == 8 && !CharacterAudio.Voices.Contains(live), "Audio overlap bound failed.");
+            Require(CharacterAudio.Voices.All(v => v.Gain <= 1f), "Call gain exceeded unity.");
+            await Wait(() => CharacterAudio.Voices.Count == 0, "Finished audio voices leaked.");
+            await ToSignalFrame();
+            Require(!GodotObject.IsInstanceValid(live.Player), "Retired audio node survived cleanup.");
+            Require(CharacterAudio.Unit(float.NaN) == 0 && CharacterAudio.Unit(-1) == 0 && CharacterAudio.Unit(2) == 1, "Invalid volume clamp failed.");
+            Checks.Add(new { check = "audio-controls", foreignPassThrough = true, liveMute = true, overlapLimit = 8, finishedCleanup = true });
+        }
+        finally {
+            observer.UnpatchAll(observer.Id);
+            settings.VolumeMaster = master; settings.VolumeSfx = sfx;
+            foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+        }
+#else
+        Checks.Add(new { check = "audio-controls", skipped = "No authored audio; native character sounds retained." });
+        await Task.CompletedTask;
+#endif
+    }
+
+#if BUILDER_AUTHORED_AUDIO
+    private static readonly List<string> AudioPlayed = new();
+    private static void ObserveAudio(string path, bool __result)
+    {
+        if (__result) {
+            Require(CharacterAudio.Voices.Count > 0 && GodotObject.IsInstanceValid(CharacterAudio.Voices[^1].Player), "Audio route did not create a live player.");
+            AudioPlayed.Add(path);
+        }
+    }
+    private static async Task ToSignalFrame()
+    {
+        await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+        await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+    }
+#endif

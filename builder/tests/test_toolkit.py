@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_dialogue, load_events, load_items, load_sprites, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -74,6 +74,21 @@ def sprite_svg():
     return ('<svg xmlns="http://www.w3.org/2000/svg" width="768" height="96" viewBox="0 0 768 96">' + cells + '</svg>').encode()
 
 
+def audio_wav(channels=1, seconds=2, sample=4000):
+    """Original quiet square pulse with an odd metadata chunk; no audio dependency."""
+    def chunk(kind, payload):
+        return kind + struct.pack('<I', len(payload)) + payload + (b'\0' if len(payload) % 2 else b'')
+    pcm = b''.join(struct.pack('<h', sample if i % 80 < 40 else -sample) * channels for i in range(16000 * seconds))
+    body = (b'WAVE' + chunk(b'fmt ', struct.pack('<HHIIHH', 1, channels, 16000, 32000 * channels, 2 * channels, 16))
+            + chunk(b'JUNK', b'abc') + chunk(b'data', pcm))
+    return b'RIFF' + struct.pack('<I', len(body)) + body
+
+
+def authored_audio():
+    return dict(schema_version=1, cues={key: dict(asset='assets/audio/pulse.wav', gain_percent=35)
+                for key in ('select', 'transition', 'attack', 'cast', 'death')})
+
+
 class ToolkitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -112,6 +127,13 @@ class ToolkitTests(unittest.TestCase):
         value = read_json(self.project / path)
         change(value)
         atomic(self.project / path, encoded(value))
+
+    def add_audio(self):
+        data = audio_wav(channels=2)
+        atomic(self.project / 'assets/audio/pulse.wav', data)
+        self.edit('assets/manifest.json', lambda rows: rows.append(dict(path='assets/audio/pulse.wav', sha256=digest(data), method='original', license='MIT', credit='Original test pulse')))
+        self.edit('character.json', lambda c: c['features'].update(audio=True))
+        atomic(self.project / 'design/audio.json', encoded(authored_audio()))
 
     def add_sprites(self):
         data = sprite_svg()
@@ -508,6 +530,56 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(load_dialogue(self.toolkit, self.project), [])
         generate(self.toolkit, self.project, check=True)
 
+    def test_audio_contract_generation_and_packaged_bytes(self):
+        self.assertIsNone(load_audio(self.toolkit, self.project))
+        self.add_audio()
+        generate(self.toolkit, self.project)
+        source = (self.project / 'src/Generated/Audio.cs').read_bytes()
+        self.assertIn(b'CustomAttackSfx', source)
+        old_hash = input_hash(self.project)
+        self.edit('design/audio.json', lambda d: d['cues']['attack'].update(gain_percent=0))
+        generate(self.toolkit, self.project)
+        self.assertNotEqual(input_hash(self.project), old_hash)
+        self.mock_build()
+        package = stage(self.toolkit, self.project)
+        with zipfile.ZipFile(package['archive']) as archive:
+            self.assertEqual(archive.read('TestHero/assets/audio/pulse.wav'), audio_wav(channels=2))
+            self.assertNotIn('TestHero/design/audio.json', archive.namelist())
+        for mutate in (lambda d: d['cues']['attack'].update(gain_percent=101),
+                       lambda d: d['cues']['attack'].update(asset='assets/audio/Pulse.wav'),
+                       lambda d: d['cues']['attack'].update(asset='assets/icon.svg'),
+                       lambda d: d['cues'].update(victory=d['cues']['attack']),
+                       lambda d: d.update(cues={})):
+            data = authored_audio(); mutate(data)
+            atomic(self.project / 'design/audio.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/audio.json', encoded(authored_audio()))
+        self.edit('character.json', lambda c: c['features'].update(audio=False))
+        with self.assertRaisesRegex(BuilderError, 'audio disabled'): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/audio.json', encoded({}))
+        generate(self.toolkit, self.project)
+        self.assertFalse((self.project / 'src/Generated/Audio.cs').exists())
+        (self.project / 'design/audio.json').unlink()
+        self.assertIsNone(load_audio(self.toolkit, self.project))
+
+    def test_audio_pcm_bounds_and_metadata(self):
+        for channels in (1, 2):
+            self.assertEqual(len(audio_pcm(audio_wav(channels))), 64000 * channels)
+        good = audio_wav()
+        for raw in (good[:-1], good + b'x', audio_wav(sample=0), audio_wav(sample=32767), audio_wav(seconds=11),
+                    good[:20] + b'\x03\x00' + good[22:], good[:34] + b'\x08\x00' + good[36:]):
+            with self.assertRaises(BuilderError): audio_pcm(raw)
+        self.add_audio()
+        atomic(self.project / 'design/audio.json', encoded([]))
+        with self.assertRaisesRegex(BuilderError, 'expected object'): load_audio(self.toolkit, self.project)
+        # A partial design overrides only the selected native getter.
+        data = authored_audio(); data['cues'] = {'attack': data['cues']['attack']}
+        atomic(self.project / 'design/audio.json', encoded(data))
+        generate(self.toolkit, self.project)
+        source = (self.project / 'src/Generated/Audio.cs').read_text()
+        self.assertNotIn('override string CustomDeathSfx', source)
+        self.assertIn('override string CustomAttackSfx', source)
+
     def test_sprite_bounds_frames_and_optional_generation(self):
         self.add_sprites()
         invalid = [lambda d: d.update(width=767), lambda d: d.update(atlas='assets/absent.svg'),
@@ -565,6 +637,7 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'atlas dimensions'): validate(self.toolkit, self.project)
 
     def test_native_evidence_requires_complete_current_coverage(self):
+        self.add_audio()
         self.add_sprites()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
         self.edit('character.json', lambda c: c['features'].update(events=True))
@@ -575,7 +648,8 @@ class ToolkitTests(unittest.TestCase):
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls')]
+        checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
         checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
         checks += [dict(check='sprite-fairy-revive', case=key) for key in ('lethal-hit', 'held-death-pose', 'repeated-lethal-hit')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
@@ -638,6 +712,10 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = checks + [dict(check='sprite-fairy-revive', case='lethal-hit')]
         publish()
         with self.assertRaisesRegex(BuilderError, 'Fairy sprite revive'): native_evidence(self.toolkit, self.project)
+        for audio_checks in ([c for c in checks if c.get('check') != 'audio-cue'], checks + [dict(check='audio-cue', cue='attack')]):
+            receipt['checks'] = audio_checks
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'audio cue'): native_evidence(self.toolkit, self.project)
         for label in ('authored-dialogue', 'dialogue-resume'):
             receipt['checks'] = [c for c in checks if c.get('check') != label]
             publish()
@@ -651,6 +729,7 @@ class ToolkitTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
+        self.add_audio()
         self.add_sprites()
         self.add_portrait()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
@@ -694,6 +773,7 @@ public static partial class ModEntry
         probe = probe.replace('@EVENT_PROBE@', (self.toolkit / 'builder/templates/NativeEvents.cs.txt').read_text())
         probe = probe.replace('@DIALOGUE_PROBE@', (self.toolkit / 'builder/templates/NativeDialogue.cs.txt').read_text())
         probe = probe.replace('@SPRITE_PROBE@', (self.toolkit / 'builder/templates/NativeSprites.cs.txt').read_text())
+        probe = probe.replace('@AUDIO_PROBE@', (self.toolkit / 'builder/templates/NativeAudio.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -701,6 +781,7 @@ public static partial class ModEntry
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
+        self.add_audio()
         self.add_sprites()
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
         self.edit('character.json', lambda c: c['features'].update(events=True))
