@@ -93,6 +93,27 @@
                 Checks.Add(new { check = "room-presentation", room = room.Name, asset = data.GetProperty("atlas").GetString(),
                     nativeAction = true, rejectedActionUnchanged = true, frameAnchors = true, foreignUnchanged = true, reconstructed = true, cleanup = true });
             }
+            if (CharacterPresentation.Rooms.TryGetProperty("rest", out _)) {
+                // Debug rooms leave the saved map coordinate unchanged. Use a
+                // native pre-entry checkpoint for room reconstruction evidence.
+                var point = Run.CurrentMapPoint?.Children.FirstOrDefault() ?? Run.Map.StartingMapPoint;
+                point.PointType = MegaCrit.Sts2.Core.Map.MapPointType.RestSite;
+                Run.ExtraFields.StartedWithNeow = true;
+                await RunManager.Instance.EnterMapCoord(point.coord);
+                Require(Run.CurrentRoom is RestSiteRoom, "Native rest checkpoint did not enter rest room.");
+                await NGame.Instance!.ReturnToMainMenu();
+                var save = SaveManager.Instance.LoadRunSave();
+                Require(save.Success && save.SaveData != null, "Native rest checkpoint unreadable.");
+                var restored = RunState.FromSerializable(save.SaveData!);
+                await RunManager.Instance.SetUpSavedSingleplayer(restored, save.SaveData!);
+                await NGame.Instance.LoadRun(restored, save.SaveData!.PreFinishedRoom);
+                Require(Run.CurrentRoom is RestSiteRoom, "Rest checkpoint restored a different room: " + Run.CurrentRoom?.GetType().Name);
+                await Wait(() => RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter>().Any(r => r.Player == Run.Players.Single()), "Rest checkpoint scene did not arrive.");
+                var rebuilt = RoomDescendants(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.RestSite.NRestSiteCharacter>().Single(r => r.Player == Run.Players.Single());
+                var actor = CharacterPresentation.Get(rebuilt);
+                Require(actor != null && actor.Sprite.Animation == "idle" && actor.Sprite.IsPlaying() && !actor.NativeBody.Visible, "Rest checkpoint actor did not reconstruct idle.");
+                Checks.Add(new { check = "presentation-resume", room = "rest", nativeCheckpoint = true, idleAfterLoad = true });
+            }
             Checks.Add(new { check = "presentation-controls", characterOnly = true, nativeControlsPreserved = true, noSavedState = true });
         }
         finally { observer.UnpatchAll(observer.Id); RoomActions.Clear(); }

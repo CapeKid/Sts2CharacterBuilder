@@ -859,7 +859,6 @@ public static partial class ModEntry
     def test_native_compile_items_without_focus_or_cards(self):
         self.add_presentation()
         self.add_audio()
-        self.add_sprites()
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
@@ -871,6 +870,8 @@ public static partial class ModEntry
         generate(self.toolkit, self.project)
         build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
         self.assertNotIn('FocusPower', (self.project / 'src/Generated/Items.cs').read_text())
+        self.assertTrue((self.project / 'src/Generated/Presentation.cs').exists())
+        self.assertFalse((self.project / 'src/Generated/Sprites.cs').exists())
 
 
 if __name__ == '__main__':
