@@ -1,0 +1,115 @@
+// Generated combat atlas integration. No native artwork is packaged.
+using System.Text.Json;
+using System.Runtime.CompilerServices;
+using Godot;
+using HarmonyLib;
+using BaseLib.Extensions;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Rooms;
+
+namespace @NAMESPACE@;
+
+public static partial class ModEntry
+{
+    static partial void InitializeSprites() => CharacterSprites.Initialize();
+}
+
+public sealed partial class Character
+{
+    public override NCreatureVisuals CreateCustomVisuals() => CharacterSprites.Create();
+}
+
+internal static class CharacterSprites
+{
+    private sealed class Life { internal bool Dying; internal bool Finished; }
+    private static readonly ConditionalWeakTable<AnimatedSprite2D, Life> Lives = new();
+    private static bool Initialized;
+    internal static void Initialize()
+    {
+        if (Initialized) return;
+        new Harmony(@MOD_ID@ + ".combat-sprites").Patch(AccessTools.Method(typeof(NCreature), nameof(NCreature.SetAnimationTrigger)),
+            prefix: new HarmonyMethod(typeof(CharacterSprites), nameof(BeforeTrigger)) { priority = Priority.First });
+        Initialized = true;
+    }
+    private static bool BeforeTrigger(NCreature __instance, string __0)
+    {
+        if (__instance.Visuals?.GetCurrentBody() is not AnimatedSprite2D sprite || !Lives.TryGetValue(sprite, out var life)) return true;
+        var name = __0.ToLowerInvariant();
+        if (life.Dying && name != "revive") return false;
+        if (States.TryGetValue(name, out var state) && state is "attack" or "skill" or "hurt"
+            && States.GetValueOrDefault(sprite.Animation.ToString()) == state) {
+            sprite.Stop(); sprite.SetFrameAndProgress(0, 0);
+        }
+        return true;
+    }
+    internal static readonly JsonElement Data = JsonDocument.Parse(@SPRITES_JSON@).RootElement.Clone();
+    internal static readonly Dictionary<string, string> States = new(StringComparer.Ordinal) {
+        ["idle"] = "idle", ["attack"] = "attack", ["skill"] = "skill", ["cast"] = "skill",
+        ["powerup"] = "skill", ["hurt"] = "hurt", ["hit"] = "hurt", ["death"] = "death",
+        ["dead"] = "death", ["die"] = "death", ["victory"] = "victory", ["revive"] = "idle"
+    };
+    internal static NCreatureVisuals Create()
+    {
+        var atlas = ModEntry.Texture(Data.GetProperty("atlas").GetString()![7..]);
+        if (atlas.GetWidth() != Data.GetProperty("width").GetInt32() || atlas.GetHeight() != Data.GetProperty("height").GetInt32())
+            throw new InvalidDataException("Decoded sprite atlas dimensions differ from design.");
+        var frameRows = Data.GetProperty("frames").EnumerateArray().ToArray();
+        var textures = frameRows.Select(f => {
+            var rect = f.GetProperty("rect").EnumerateArray().Select(v => v.GetInt32()).ToArray();
+            return new AtlasTexture { Atlas = atlas, Region = new Rect2(rect[0], rect[1], rect[2], rect[3]) };
+        }).ToArray();
+        var frames = new SpriteFrames(); frames.RemoveAnimation("default");
+        foreach (var (name, state) in States) {
+            var row = Data.GetProperty("states").GetProperty(state);
+            frames.AddAnimation(name);
+            frames.SetAnimationLoop(name, state is "idle" or "victory");
+            frames.SetAnimationSpeed(name, row.GetProperty("fps").GetInt32());
+            foreach (var index in row.GetProperty("frames").EnumerateArray()) frames.AddFrame(name, textures[index.GetInt32()]);
+        }
+        var scale = Data.GetProperty("scale_percent").GetInt32() / 100f;
+        var sprite = new AnimatedSprite2D { SpriteFrames = frames, Centered = false, Scale = Vector2.One * scale,
+            TextureFilter = Data.GetProperty("filter").GetString() == "nearest" ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.Linear };
+        void Align() {
+            if (!States.TryGetValue(sprite.Animation.ToString(), out var state)) return;
+            var indices = Data.GetProperty("states").GetProperty(state).GetProperty("frames");
+            var anchor = frameRows[indices[Math.Clamp(sprite.Frame, 0, indices.GetArrayLength() - 1)].GetInt32()].GetProperty("anchor");
+            sprite.Offset = new Vector2(-anchor[0].GetInt32(), -anchor[1].GetInt32());
+        }
+        var life = Lives.GetValue(sprite, _ => new Life());
+        sprite.FrameChanged += Align;
+        sprite.AnimationChanged += () => {
+            var name = sprite.Animation.ToString();
+            if (name == "revive") { life.Dying = false; life.Finished = false; }
+            else if (life.Dying && States.GetValueOrDefault(name) != "death") {
+                sprite.Play("dead");
+                if (life.Finished) { sprite.Stop(); sprite.Frame = frames.GetFrameCount("dead") - 1; }
+            }
+            else if (States.GetValueOrDefault(name) == "death") life.Dying = true;
+            Align();
+        };
+        sprite.AnimationFinished += () => {
+            if (States[sprite.Animation.ToString()] == "death") life.Finished = true;
+            else sprite.Play("idle");
+        };
+        var bounds = new Rect2();
+        foreach (var frame in frameRows) {
+            var rect = frame.GetProperty("rect"); var anchor = frame.GetProperty("anchor");
+            bounds = bounds.Merge(new Rect2(-anchor[0].GetInt32() * scale, -anchor[1].GetInt32() * scale,
+                rect[2].GetInt32() * scale, rect[3].GetInt32() * scale));
+        }
+        var visuals = new NCreatureVisuals();
+        visuals.AddUnique(sprite, "Visuals");
+        visuals.AddUnique(new Control { Position = bounds.Position, Size = bounds.Size, MouseFilter = Control.MouseFilterEnum.Ignore }, "Bounds");
+        visuals.AddUnique(new Marker2D { Position = new(0, bounds.Position.Y - 24) }, "IntentPos");
+        visuals.AddUnique(new Marker2D { Position = bounds.GetCenter() }, "CenterPos");
+        visuals.AddUnique(new Marker2D { Position = new(bounds.End.X + 32, bounds.GetCenter().Y) }, "OrbPos");
+        visuals.AddUnique(new Marker2D { Position = new(bounds.End.X + 16, bounds.Position.Y + 32) }, "TalkPos");
+        visuals.AddUnique(new Control { MouseFilter = Control.MouseFilterEnum.Ignore }, "FormVfx");
+        void Won(CombatRoom _) { if (!life.Dying && sprite.IsInsideTree()) sprite.Play("victory"); }
+        visuals.TreeEntered += () => CombatManager.Instance.CombatWon += Won;
+        visuals.TreeExiting += () => CombatManager.Instance.CombatWon -= Won;
+        sprite.Play("idle"); Align();
+        return visuals;
+    }
+}

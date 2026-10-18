@@ -35,6 +35,7 @@ public static partial class ModEntry
     private static bool LocalizationPatched;
     static partial void Configure();
     static partial void InitializeDialogue();
+    static partial void InitializeSprites();
     public static void Initialize()
     {
 #if BUILDER_NATIVE_TESTS
@@ -50,6 +51,7 @@ public static partial class ModEntry
         }
         Configure();
         InitializeDialogue();
+        InitializeSprites();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
     }
     private static void RestoreLocalization(LocManager __instance)

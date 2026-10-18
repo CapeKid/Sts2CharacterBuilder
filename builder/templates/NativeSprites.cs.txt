@@ -1,0 +1,84 @@
+    private static async Task Sprites()
+    {
+#if BUILDER_AUTHORED_SPRITES
+        await Room();
+        var node = SpriteCreature(); var visuals = node.Visuals; var sprite = SpriteBody();
+        using var foreign = ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>().CreateVisuals();
+        Tree.Root.AddChild(foreign);
+        Require(foreign.GetCurrentBody() is not AnimatedSprite2D, "Native character visuals replaced.");
+        Tree.Root.RemoveChild(foreign);
+        var data = Request.GetProperty("sprites");
+        var asset = data.GetProperty("atlas").GetString()!;
+        using var expected = new Image();
+        var path = Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, asset);
+        var error = path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? expected.LoadSvgFromString(File.ReadAllText(path)) : expected.LoadPngFromBuffer(File.ReadAllBytes(path));
+        Require(error == Error.Ok, "Sprite asset failed to decode.");
+        var atlas = ((AtlasTexture)sprite.SpriteFrames.GetFrameTexture("idle", 0)).Atlas;
+        using var actual = atlas.GetImage();
+        Require(actual.GetSize() == expected.GetSize() && actual.GetData().SequenceEqual(expected.GetData()), "Sprite atlas pixels differ.");
+        Require(ReferenceEquals(atlas, ModEntry.Texture(asset[7..])), "Sprite atlas cache missed.");
+        Require(visuals.Bounds.Size.X > 0 && visuals.Bounds.Size.Y > 0 && visuals.IntentPosition != null && visuals.VfxSpawnPosition != null, "Visual bounds/markers missing.");
+        Checks.Add(new { check = "sprite-integration", asset, width = actual.GetWidth(), height = actual.GetHeight(), cached = true, nativeCharacterUnchanged = true, markers = true });
+        foreach (var (state, trigger) in new[] { ("idle", "Idle"), ("attack", "Attack"), ("skill", "Cast"), ("hurt", "Hit"), ("victory", "Victory"), ("death", "Dead") }) {
+            node.SetAnimationTrigger("Idle");
+            node.SetAnimationTrigger(trigger);
+            var name = sprite.Animation.ToString();
+            Require(CharacterSprites.States[name] == state, "Native trigger did not select sprite state: " + trigger);
+            sprite.Pause();
+            var row = data.GetProperty("states").GetProperty(state);
+            Require(sprite.SpriteFrames.GetFrameCount(name) == row.GetProperty("frames").GetArrayLength()
+                && sprite.SpriteFrames.GetAnimationSpeed(name) == row.GetProperty("fps").GetInt32(), "Sprite frame timing differs.");
+            var visible = false;
+            for (var i = 0; i < row.GetProperty("frames").GetArrayLength(); i++) {
+                sprite.SetFrameAndProgress(i, 0);
+                var frame = data.GetProperty("frames")[row.GetProperty("frames")[i].GetInt32()];
+                var rect = frame.GetProperty("rect"); var anchor = frame.GetProperty("anchor");
+                var texture = (AtlasTexture)sprite.SpriteFrames.GetFrameTexture(name, i);
+                using var pixels = texture.GetImage();
+                visible |= pixels.GetUsedRect().HasArea();
+                Require(texture.Region == new Rect2(rect[0].GetInt32(), rect[1].GetInt32(), rect[2].GetInt32(), rect[3].GetInt32()), "Sprite frame crop differs.");
+                Require(sprite.Offset == new Vector2(-anchor[0].GetInt32(), -anchor[1].GetInt32()), "Sprite frame anchor differs.");
+                var footprint = new Rect2(sprite.Offset * sprite.Scale, texture.GetSize() * sprite.Scale);
+                Require(visuals.Bounds.GetRect().Grow(0.1f).Encloses(footprint), "Sprite frame exceeds visual hit bounds.");
+            }
+            Require(visible, "Sprite state has no visible pixels.");
+            if (state is "attack" or "skill" or "hurt") {
+                node.SetAnimationTrigger(trigger);
+                Require(sprite.Frame == 0 && sprite.FrameProgress == 0, "Repeated sprite action failed to restart.");
+            }
+            sprite.SetFrameAndProgress(0, 0); sprite.Play(name);
+            if (state is "attack" or "skill" or "hurt") await Wait(() => sprite.Animation == "idle", "One-shot sprite did not return to idle.");
+            if (state == "death") {
+                await Wait(() => !sprite.IsPlaying(), "Death sprite did not finish.");
+                Require(sprite.Frame == sprite.SpriteFrames.GetFrameCount(name) - 1, "Death sprite failed to hold final frame.");
+                node.SetAnimationTrigger("Idle");
+                Require(CharacterSprites.States[sprite.Animation.ToString()] == "death", "Idle resurrected dead sprite.");
+                node.StartReviveAnim();
+                Require(CharacterSprites.States[sprite.Animation.ToString()] == "idle", "Native revive failed to reset sprite.");
+            }
+            Checks.Add(new { check = "sprite-state", state, frames = row.GetProperty("frames").GetArrayLength(), anchors = true, timing = true, nativeTrigger = true, visible = true });
+        }
+        var creature = Run.Players.Single().Creature;
+        foreach (var enemy in creature.CombatState!.GetOpponentsOf(creature).Where(e => e.IsAlive).ToArray()) await CreatureCmd.Kill(enemy);
+        Require(await CombatManager.Instance.CheckWinCondition(), "Native victory fixture did not end combat.");
+        await Wait(() => sprite.Animation == "victory", "Native combat victory did not start sprite victory loop.");
+        Checks.Add(new { check = "sprite-victory", nativeCombatWon = true });
+        await Room();
+        CheckSpriteReset();
+        Checks.Add(new { check = "sprite-reset", newCombatIdle = true, previousFreed = !GodotObject.IsInstanceValid(sprite) || !sprite.IsInsideTree() });
+#else
+        await Task.CompletedTask;
+        Checks.Add(new { check = "sprite-integration", skipped = true, reason = "No authored combat sprites" });
+#endif
+    }
+#if BUILDER_AUTHORED_SPRITES
+    private static MegaCrit.Sts2.Core.Nodes.Combat.NCreature SpriteCreature() => Run.Players.Single().Creature.GetCreatureNode()!;
+    private static AnimatedSprite2D SpriteBody() => SpriteCreature().Visuals.GetCurrentBody() as AnimatedSprite2D ?? throw new InvalidDataException("Authored sprite missing from native creature body.");
+    private static void CheckSpriteReset()
+    {
+        var sprite = SpriteBody();
+        Require(sprite.Animation == "idle" && sprite.IsPlaying(), "New/resumed combat did not reset sprite to idle.");
+        var frame = (AtlasTexture)sprite.SpriteFrames.GetFrameTexture("idle", 0);
+        Require(ReferenceEquals(frame.Atlas, ModEntry.Texture(CharacterSprites.Data.GetProperty("atlas").GetString()![7..])), "Resumed sprite atlas changed.");
+    }
+#endif

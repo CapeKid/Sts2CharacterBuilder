@@ -11,7 +11,7 @@ import unittest
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_dialogue, load_events, load_items, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_dialogue, load_events, load_items, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 
@@ -60,6 +60,20 @@ def authored_dialogue():
     return rows
 
 
+def authored_sprites():
+    return dict(schema_version=1, atlas='assets/sprites/actor.svg', width=768, height=96,
+                scale_percent=200, filter='nearest', frames=[dict(rect=[i * 64, 0, 64, 96], anchor=[32 + i % 2, 90]) for i in range(12)],
+                states={key: dict(fps=12, frames=[i * 2, i * 2 + 1])
+                        for i, key in enumerate(('idle', 'attack', 'skill', 'hurt', 'death', 'victory'))})
+
+
+def sprite_svg():
+    colors = ['#57B8A7', '#E6B450', '#7A9EE6', '#D7667A', '#727B91', '#C296E0']
+    cells = ''.join(f'<g transform="translate({i * 64},0)"><rect x="{12 + i % 2}" y="28" width="40" height="60" rx="10" fill="{colors[i // 2]}"/>'
+                    '<circle cx="32" cy="20" r="15" fill="#F3E6CD"/><path d="M20 87H46" stroke="#182030" stroke-width="5"/></g>' for i in range(12))
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="768" height="96" viewBox="0 0 768 96">' + cells + '</svg>').encode()
+
+
 class ToolkitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -98,6 +112,13 @@ class ToolkitTests(unittest.TestCase):
         value = read_json(self.project / path)
         change(value)
         atomic(self.project / path, encoded(value))
+
+    def add_sprites(self):
+        data = sprite_svg()
+        atomic(self.project / 'assets/sprites/actor.svg', data)
+        self.edit('assets/manifest.json', lambda rows: rows.append(dict(path='assets/sprites/actor.svg', sha256=digest(data), method='original', license='MIT', credit='Original geometric test actor')))
+        self.edit('character.json', lambda c: c['features'].update(sprites=True))
+        atomic(self.project / 'design/sprites.json', encoded(authored_sprites()))
 
     def test_two_projects_and_recursive_clone(self):
         other = self.project.parent / 'Second hero'
@@ -487,7 +508,64 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(load_dialogue(self.toolkit, self.project), [])
         generate(self.toolkit, self.project, check=True)
 
+    def test_sprite_bounds_frames_and_optional_generation(self):
+        self.add_sprites()
+        invalid = [lambda d: d.update(width=767), lambda d: d.update(atlas='assets/absent.svg'),
+                   lambda d: d['frames'][0].update(rect=[760, 0, 64, 96]),
+                   lambda d: d['frames'][0].update(rect=[0, 0, 0, 96]),
+                   lambda d: d['frames'][0].update(anchor=[65, 90]),
+                   lambda d: d['frames'][0].update(rect=[0, 0, 300, 96]),
+                   lambda d: d['states']['idle'].update(frames=[12]),
+                   lambda d: d['states']['idle'].update(fps=0),
+                   lambda d: d['states']['attack'].update(fps=1, frames=[0] * 6),
+                   lambda d: d['states'].pop('death'), lambda d: d['states'].update(other=dict(fps=1, frames=[0])),
+                   lambda d: d.update(scale_percent=True)]
+        for mutate in invalid:
+            data = authored_sprites(); mutate(data)
+            atomic(self.project / 'design/sprites.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        data = authored_sprites()
+        atomic(self.project / 'design/sprites.json', encoded(data))
+        generate(self.toolkit, self.project)
+        generated = self.project / 'src/Generated/Sprites.cs'
+        self.assertTrue(generated.exists())
+        before = input_hash(self.project)
+        self.edit('design/sprites.json', lambda d: d.update(scale_percent=190))
+        self.assertNotEqual(input_hash(self.project), before)
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
+        self.edit('character.json', lambda c: c['features'].update(sprites=False))
+        with self.assertRaisesRegex(BuilderError, 'sprites disabled'): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/sprites.json', encoded({}))
+        original = generated.read_bytes(); generated.write_bytes(original + b'// edit')
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'): generate(self.toolkit, self.project)
+        generated.write_bytes(original); generate(self.toolkit, self.project)
+        self.assertFalse(generated.exists())
+        (self.project / 'design/sprites.json').unlink()
+        self.assertIsNone(load_sprites(self.toolkit, self.project))
+        generate(self.toolkit, self.project, check=True)
+
+    def test_png_sprite_dimensions_and_shipped_bytes(self):
+        self.add_sprites()
+        data = portrait_png()
+        path = 'assets/sprites/tiny.png'
+        atomic(self.project / path, data)
+        self.edit('assets/manifest.json', lambda rows: rows.append(dict(path=path, sha256=digest(data), method='original', license='MIT', credit='Two-pixel atlas fixture')))
+        design = authored_sprites()
+        design.update(atlas=path, width=2, height=1,
+                      frames=[dict(rect=[0, 0, 1, 1], anchor=[0, 1]), dict(rect=[1, 0, 1, 1], anchor=[1, 1])],
+                      states={k: dict(fps=5, frames=[0, 1]) for k in design['states']})
+        atomic(self.project / 'design/sprites.json', encoded(design))
+        generate(self.toolkit, self.project)
+        self.mock_build()
+        report = stage(self.toolkit, self.project)
+        with zipfile.ZipFile(report['archive']) as archive:
+            self.assertEqual(archive.read('TestHero/' + path), data)
+            self.assertNotIn('TestHero/design/sprites.json', archive.namelist())
+        self.edit('design/sprites.json', lambda d: d.update(width=1))
+        with self.assertRaisesRegex(BuilderError, 'atlas dimensions'): validate(self.toolkit, self.project)
+
     def test_native_evidence_requires_complete_current_coverage(self):
+        self.add_sprites()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
@@ -497,7 +575,8 @@ class ToolkitTests(unittest.TestCase):
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume')]
+        checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
         checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
                    for card in cards for upgrade in (False, True)]
@@ -545,6 +624,12 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = checks
         publish()
         self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        receipt['checks'] = [c for c in checks if c.get('check') != 'sprite-state']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'sprite state'): native_evidence(self.toolkit, self.project)
+        receipt['checks'] = [c for c in checks if c.get('check') != 'sprite-resume']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'sprite victory/reset/resume'): native_evidence(self.toolkit, self.project)
         for label in ('authored-dialogue', 'dialogue-resume'):
             receipt['checks'] = [c for c in checks if c.get('check') != label]
             publish()
@@ -558,6 +643,7 @@ class ToolkitTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
+        self.add_sprites()
         self.add_portrait()
         atomic(self.project / 'design/items.json', encoded(authored_items()))
         self.edit('character.json', lambda c: c['features'].update(events=True))
@@ -599,6 +685,7 @@ public static partial class ModEntry
         probe = probe.replace('@ITEM_PROBE@', (self.toolkit / 'builder/templates/NativeItems.cs.txt').read_text())
         probe = probe.replace('@EVENT_PROBE@', (self.toolkit / 'builder/templates/NativeEvents.cs.txt').read_text())
         probe = probe.replace('@DIALOGUE_PROBE@', (self.toolkit / 'builder/templates/NativeDialogue.cs.txt').read_text())
+        probe = probe.replace('@SPRITE_PROBE@', (self.toolkit / 'builder/templates/NativeSprites.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -606,6 +693,7 @@ public static partial class ModEntry
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
+        self.add_sprites()
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
