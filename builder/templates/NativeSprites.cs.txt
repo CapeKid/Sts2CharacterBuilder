@@ -58,6 +58,7 @@
             }
             Checks.Add(new { check = "sprite-state", state, frames = row.GetProperty("frames").GetArrayLength(), anchors = true, timing = true, nativeTrigger = true, visible = true });
         }
+        await FairySpriteRevive();
         var creature = Run.Players.Single().Creature;
         foreach (var enemy in creature.CombatState!.GetOpponentsOf(creature).Where(e => e.IsAlive).ToArray()) await CreatureCmd.Kill(enemy);
         Require(await CombatManager.Instance.CheckWinCondition(), "Native victory fixture did not end combat.");
@@ -72,6 +73,51 @@
 #endif
     }
 #if BUILDER_AUTHORED_SPRITES
+    private static async Task FairySpriteRevive()
+    {
+        var player = Run.Players.Single(); var creature = player.Creature;
+        var node = SpriteCreature(); var sprite = SpriteBody();
+        var atlas = ((AtlasTexture)sprite.SpriteFrames.GetFrameTexture("idle", 0)).Atlas;
+        var scale = sprite.Scale; var bounds = node.Visuals.Bounds.GetRect();
+        foreach (var old in player.Potions.ToArray()) await PotionCmd.Discard(old);
+        var neighbour = ModelDb.Potion<MegaCrit.Sts2.Core.Models.Potions.BlockPotion>().ToMutable();
+        Require((await PotionCmd.TryToProcure(neighbour, player)).success, "Revive control potion procurement failed.");
+        foreach (var key in new[] { "lethal-hit", "held-death-pose", "repeated-lethal-hit" }) {
+            Progress("sprite-fairy:" + key);
+            foreach (var power in creature.Powers.ToArray()) await PowerCmd.Remove(power);
+            creature.LoseBlockInternal(creature.Block);
+            creature.SetMaxHpInternal(100); creature.SetCurrentHpInternal(1);
+            var fairy = ModelDb.Potion<MegaCrit.Sts2.Core.Models.Potions.FairyInABottle>().ToMutable();
+            Require((await PotionCmd.TryToProcure(fairy, player)).success, "Fairy procurement failed.");
+            if (key == "held-death-pose") {
+                // A separate pose control exercises the death lock through the
+                // real potion pipeline, rather than calling StartReviveAnim.
+                node.SetAnimationTrigger("Dead");
+                await Wait(() => !sprite.IsPlaying(), "Fairy death-pose fixture did not finish.");
+                Require(CharacterSprites.States[sprite.Animation.ToString()] == "death", "Fairy death-pose fixture missing.");
+            }
+            await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), creature, 10m,
+                ValueProp.Unpowered | ValueProp.Unblockable, null, null);
+            await Wait(() => creature.CurrentHp > 0 && !creature.IsDead && !player.Potions.Contains(fairy), "Native Fairy did not prevent death and consume itself.");
+            Require(creature.CurrentHp == 30 && player.Potions.Contains(neighbour) && player.Potions.Count() == 1,
+                "Fairy heal amount or potion-slot consumption differs.");
+            await Wait(() => CharacterSprites.States[sprite.Animation.ToString()] == "idle" && sprite.IsPlaying(), "Fairy left the sprite in its death pose.");
+            Require(ReferenceEquals(sprite, SpriteBody()) && sprite.IsVisibleInTree() && sprite.Modulate.A > 0,
+                "Fairy replaced or hid the authored sprite.");
+            var frame = (AtlasTexture)sprite.SpriteFrames.GetFrameTexture(sprite.Animation, sprite.Frame);
+            Require(ReferenceEquals(atlas, frame.Atlas) && sprite.Scale == scale && node.Visuals.Bounds.GetRect() == bounds,
+                "Fairy restored a different atlas, scale or bounds.");
+            var idle = CharacterSprites.Data.GetProperty("states").GetProperty("idle").GetProperty("frames");
+            var anchor = CharacterSprites.Data.GetProperty("frames")[idle[sprite.Frame].GetInt32()].GetProperty("anchor");
+            Require(sprite.Offset == new Vector2(-anchor[0].GetInt32(), -anchor[1].GetInt32()), "Fairy restored the wrong idle anchor.");
+            node.SetAnimationTrigger("Attack");
+            Require(CharacterSprites.States[sprite.Animation.ToString()] == "attack", "Fairy left the sprite death lock active.");
+            await Wait(() => sprite.Animation == "idle", "Post-Fairy attack failed to return to idle.");
+            Checks.Add(new { check = "sprite-fairy-revive", @case = key, potion = fairy.Id.ToString(), hp = creature.CurrentHp,
+                consumedOnlyFairy = true, sameSpriteAndAtlas = true, visible = true, anchorsAndScale = true, attackAfterRevive = true });
+        }
+        await PotionCmd.Discard(neighbour);
+    }
     private static MegaCrit.Sts2.Core.Nodes.Combat.NCreature SpriteCreature() => Run.Players.Single().Creature.GetCreatureNode()!;
     private static AnimatedSprite2D SpriteBody() => SpriteCreature().Visuals.GetCurrentBody() as AnimatedSprite2D ?? throw new InvalidDataException("Authored sprite missing from native creature body.");
     private static void CheckSpriteReset()

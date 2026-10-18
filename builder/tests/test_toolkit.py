@@ -577,6 +577,7 @@ class ToolkitTests(unittest.TestCase):
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
         checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume')]
         checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
+        checks += [dict(check='sprite-fairy-revive', case=key) for key in ('lethal-hit', 'held-death-pose', 'repeated-lethal-hit')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
         checks += [dict(check='card-portrait', card=card['id'], upgraded=upgrade, asset='assets/card.svg')
                    for card in cards for upgrade in (False, True)]
@@ -630,6 +631,13 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = [c for c in checks if c.get('check') != 'sprite-resume']
         publish()
         with self.assertRaisesRegex(BuilderError, 'sprite victory/reset/resume'): native_evidence(self.toolkit, self.project)
+        for key in ('lethal-hit', 'held-death-pose', 'repeated-lethal-hit'):
+            receipt['checks'] = [c for c in checks if not (c.get('check') == 'sprite-fairy-revive' and c.get('case') == key)]
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'Fairy sprite revive'): native_evidence(self.toolkit, self.project)
+        receipt['checks'] = checks + [dict(check='sprite-fairy-revive', case='lethal-hit')]
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'Fairy sprite revive'): native_evidence(self.toolkit, self.project)
         for label in ('authored-dialogue', 'dialogue-resume'):
             receipt['checks'] = [c for c in checks if c.get('check') != label]
             publish()

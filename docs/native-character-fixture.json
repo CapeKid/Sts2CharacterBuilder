@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "e24f7ca4532436f15a2f62e92bba408e08e2669abd889b8ef7951a3fe12ce531",
+  "input_sha256": "b532f088a4060190e5900032db23826c2369f17beee0b93f9046a0cfa6668f01",
   "source_sha256": "c2cd531d970a21f0706ba043229f95b231bd736d971985bbd59fc32eec182ce4",
   "release_dll_sha256": "6520a61b4079daca5e41c05e15ad4813742cfcd71c092e183e4048934eda8906",
-  "test_dll_sha256": "9222c3e3f7677ebae28d24d469cb5e628def6b397104ebb6052718eb969c32d9",
+  "test_dll_sha256": "b4484ba50b200d245b308bb76a40169abb7aebdc2c1a6675bdaa7ea586ef2a4c",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "c194f3a71b58a7cbf43ccc1d8204db8ae414e076dc0fb7cac1ccbdff5a301f52",
+  "probe_source_sha256": "758770254af1fff132f9a9c537d0b419fa9361602e7db71df9da07b2a9757192",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -23,8 +23,8 @@
     "Bespoke extension effects are outside the numeric fixtures",
     "Campaign balance and Workshop delivery unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction",
-  "fixture_toolkit_snapshot": "6b85a077b0f83715f4ad97948489f0169aceb6a4",
+  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction; Fairy in a Bottle automatic lethal-hit/repeated recovery and held-death-pose control",
+  "fixture_toolkit_snapshot": "163301f0fdfc8dbf7fe770ea9228e7e2ba4e8f7a",
   "checks": [
     {
       "check": "registration",
@@ -233,6 +233,39 @@
       "timing": true,
       "nativeTrigger": true,
       "visible": true
+    },
+    {
+      "check": "sprite-fairy-revive",
+      "case": "lethal-hit",
+      "potion": "POTION.FAIRY_IN_A_BOTTLE",
+      "hp": 30,
+      "consumedOnlyFairy": true,
+      "sameSpriteAndAtlas": true,
+      "visible": true,
+      "anchorsAndScale": true,
+      "attackAfterRevive": true
+    },
+    {
+      "check": "sprite-fairy-revive",
+      "case": "held-death-pose",
+      "potion": "POTION.FAIRY_IN_A_BOTTLE",
+      "hp": 30,
+      "consumedOnlyFairy": true,
+      "sameSpriteAndAtlas": true,
+      "visible": true,
+      "anchorsAndScale": true,
+      "attackAfterRevive": true
+    },
+    {
+      "check": "sprite-fairy-revive",
+      "case": "repeated-lethal-hit",
+      "potion": "POTION.FAIRY_IN_A_BOTTLE",
+      "hp": 30,
+      "consumedOnlyFairy": true,
+      "sameSpriteAndAtlas": true,
+      "visible": true,
+      "anchorsAndScale": true,
+      "attackAfterRevive": true
     },
     {
       "check": "sprite-victory",
