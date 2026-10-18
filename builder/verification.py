@@ -99,7 +99,7 @@ def native_evidence(toolkit, root):
             or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
         raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
     labels = {check.get('check') for check in receipt.get('checks', [])}
-    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls', 'presentation-controls'}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls', 'presentation-controls', 'native-io'}
     played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
@@ -151,7 +151,9 @@ def native_evidence(toolkit, root):
     actual = [c.get('room') for c in receipt.get('checks', []) if c.get('check') == 'room-presentation']
     if set(actual) != rooms or len(actual) != len(rooms):
         raise BuilderError('Native evidence does not cover every room presentation')
-    if 'rest' in rooms and 'presentation-resume' not in labels:
+    resumed = [c.get('room') for c in receipt.get('checks', []) if c.get('check') == 'presentation-resume']
+    expected_resume = {'rest'} if 'rest' in rooms else set()
+    if set(resumed) != expected_resume or len(resumed) != len(expected_resume):
         raise BuilderError('Native evidence does not cover presentation resume')
     return receipt
 

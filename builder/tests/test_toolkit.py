@@ -709,7 +709,8 @@ class ToolkitTests(unittest.TestCase):
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'presentation-resume')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'native-io')]
+        checks += [dict(check='presentation-resume', room='rest')]
         checks += [dict(check='room-presentation', room=key) for key in authored_presentation()['rooms']]
         checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
         checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
@@ -781,6 +782,10 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = [c for c in checks if c.get('check') != 'presentation-resume']
         publish()
         with self.assertRaisesRegex(BuilderError, 'presentation resume'): native_evidence(self.toolkit, self.project)
+        for resumed in ([dict(check='presentation-resume', room='shop')], [dict(check='presentation-resume', room='rest')] * 2):
+            receipt['checks'] = [c for c in checks if c.get('check') != 'presentation-resume'] + resumed
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'presentation resume'): native_evidence(self.toolkit, self.project)
         for audio_checks in ([c for c in checks if c.get('check') != 'audio-cue'], checks + [dict(check='audio-cue', cue='attack')]):
             receipt['checks'] = audio_checks
             publish()

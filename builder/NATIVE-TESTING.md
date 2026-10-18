@@ -21,6 +21,7 @@ Before launch, hashes of the copied game, mod/dependency bytes, request and init
 
 The native suite checks:
 
+- Progress-file recovery after a Windows reader lock, bounded atomic replacement retries, and strict failure when a final-evidence write cannot commit. A busy progress reader cannot fail otherwise healthy gameplay; final evidence must still be complete and written successfully.
 - Character/card registration and original icon loading; starter deck/relic identities and starter resource trigger.
 - Every generated numeric card, base and upgraded, played through the native paid action path: targeting rejection, Energy, damage, Block, draw, resource gain, Exhaust/Power/discard disposal, completed action/table cleanup and card save round trips. Draw/Energy/Focus descriptions must match the active upgrade values. The recorded local fixture adds two test-only designs to exercise positive Energy gain and all-enemy damage combined with Block.
 - Every generated card portrait in both upgrade states: decoded pixels/dimensions match the assigned SVG/PNG or shared fallback, cached textures are reused, and card save/load retains the selected texture. These checks require a fresh lab after a toolkit upgrade; old numeric-only evidence is incomplete. Human crop/style/legibility review remains separate.
