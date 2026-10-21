@@ -1,7 +1,6 @@
 """Project bootstrap and ownership-aware generation. No game content is copied."""
 import os
 import json
-import shutil
 import subprocess
 import tempfile
 import re
@@ -130,9 +129,10 @@ def bootstrap(toolkit, target, args):
         generate(toolkit, temporary)
         run(['git', 'add', '.'], temporary)
         os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
+    except Exception as error:
+        # A cloned Git object can be read-only on Windows. Cleanup must not
+        # replace the original failure or erase useful partial work.
+        raise BuilderError(f'Bootstrap failed; partial files retained at {temporary}: {error}') from error
     return dict(project=str(target), toolkit_commit=commit, status='prototype', next='resume')
 
 

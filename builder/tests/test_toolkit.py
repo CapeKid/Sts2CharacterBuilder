@@ -379,6 +379,24 @@ class ToolkitTests(unittest.TestCase):
         generate(clone / 'tools/character-builder', clone, freeze=True)
         generate(clone / 'tools/character-builder', clone, check=True)
 
+    def test_bootstrap_failure_keeps_partial_work(self):
+        target = self.project.parent / 'Failed character'
+        args = argparse.Namespace(id='FailedCharacter', name='Failed Character', idea='Failure fixture', author='Fixture',
+                                  mode='guided', toolkit_source=str(self.source), toolkit_commit=self.commit)
+        def fail_generation(toolkit, temporary):
+            evidence = temporary / 'read-only-partial.txt'
+            evidence.write_bytes(b'Preserve this partial work')
+            evidence.chmod(0o400)
+            raise BuilderError('Original generation failure')
+        with patch('builder.project.generate', side_effect=fail_generation):
+            with self.assertRaisesRegex(BuilderError, 'partial files retained.*Original generation failure') as raised:
+                bootstrap(self.toolkit, target, args)
+        self.assertIsInstance(raised.exception.__cause__, BuilderError)
+        self.assertFalse(target.exists())
+        partials = list(target.parent.glob('.character-init-*'))
+        self.assertEqual(len(partials), 1)
+        self.assertEqual((partials[0] / 'read-only-partial.txt').read_bytes(), b'Preserve this partial work')
+
     def test_existing_destination_preserved(self):
         sentinel = self.project / 'sentinel'
         sentinel.write_text('keep')
