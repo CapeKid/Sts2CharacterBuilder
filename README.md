@@ -14,6 +14,7 @@ The initial eight-card design is a prototype, not an automatically completed nat
 
 `prepare-lab` and `test-native` provide opt-in isolated gameplay checks using an independent copy of an owned game and a dedicated save backend. The test-only probe is excluded from normal builds/packages. A local v0.111.0 fixture passed 107 native checks, including extra Energy/AoE cases, per-card portrait loading, authored relic/potion artwork and lifecycles, event/checkpoint cases, Ancient conversations, locale reloads, combat sprite states, Fairy in a Bottle recovery, short character sound routing/mute/cleanup, independent rest/shop action/reconstruction, Windows progress-reader lock controls and native selection portrait/unlock/background/navigation checks; see [native verification](builder/NATIVE-TESTING.md) for coverage and remaining limits. `balance --comparator CHARACTER.IRONCLAD` uses a passing current lab's native rarity/type counts rather than a hardcoded full-pool target.
 
+- [Full card-pool planning](builder/CARD-POOLS.md)
 - [Design and extraction plan](docs/character-builder-design.md)
 - [Implementation issue](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1)
 - [Spire Legacy reference documentation](SPIRE_LEGACY_REFERENCE.md)

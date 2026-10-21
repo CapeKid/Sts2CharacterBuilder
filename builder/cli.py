@@ -8,6 +8,7 @@ from .project import STEPS, bootstrap, generate
 from .verification import balance, build, compare_delivery, doctor, pin_check, record, resume, stage, verify
 from .native_lab import prepare, run_native
 from .publishing import prepare_publish, check_publish
+from .card_pool import plan_cards
 
 TOOLKIT = Path(__file__).resolve().parents[1]
 
@@ -31,6 +32,9 @@ def main():
     commands.add_parser('resume')
     commands.add_parser('test', help='Structural verification; never claims native gameplay coverage')
     commands.add_parser('balance').add_argument('--comparator', help='Exact character ID from current native lab evidence')
+    pool = commands.add_parser('plan-cards', help='Capture native pool targets, then track authoring gaps without claiming current native parity')
+    pool.add_argument('--comparator', help='Capture targets from an exact native character ID in a passing current lab')
+    pool.add_argument('--replace-baseline', action='store_true', help='Explicitly replace targets and the original-card snapshot from current native evidence')
     commands.add_parser('stage', help='Stage a closed private-test ZIP from the current native build')
     lab = commands.add_parser('prepare-lab', help='Build a test-only probe and independently copy an owned game into a disposable lab')
     lab.add_argument('--game-root', required=True, type=Path)
@@ -78,6 +82,8 @@ def main():
             result = verify(TOOLKIT, root)
         elif args.command == 'balance':
             result = balance(TOOLKIT, root, args.comparator)
+        elif args.command == 'plan-cards':
+            result = plan_cards(TOOLKIT, root, args.comparator, args.replace_baseline)
         elif args.command == 'build':
             result = build(TOOLKIT, root, args.game_data)
         elif args.command == 'stage':

@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import struct
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from builder.contracts import BuilderError, digest, encoded, input_hash, load_au
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 from builder.publishing import check_publish, prepare_publish, publication
+from builder.card_pool import BASELINE, plan_cards
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -718,6 +720,141 @@ class ToolkitTests(unittest.TestCase):
         atomic(self.project / 'build/native/TestHero.dll', b'fixture DLL bytes')
         atomic(self.project / '.builder/build.json', encoded(dict(input_sha256=input_hash(self.project),
                source_sha256=source_hash(self.project), dll_sha256=digest(b'fixture DLL bytes'), kind='fixture')))
+
+    def mock_pool_evidence(self, native=None):
+        # Synthetic complete envelope exercises planning/evidence handling, not gameplay.
+        self.mock_build()
+        cards = read_json(self.project / 'design/cards.json')
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn',
+            'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration',
+            'audio-controls', 'presentation-controls', 'native-io', 'selection-controls')]
+        checks += [dict(check='paid-card', card=c['id'], upgraded=u) for c in cards for u in (False, True)]
+        checks += [dict(check='card-portrait', card=c['id'], upgraded=u, asset=c.get('portrait', 'assets/card.svg'))
+                   for c in cards for u in (False, True)]
+        if native is None:
+            native = [dict(type='Attack', rarity='Common')] * 3 + [dict(type='Skill', rarity='Uncommon')] * 2
+        receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=checks,
+            input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
+            toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
+            native_comparators=[dict(character='CHARACTER.FIXTURE', cards=native)])
+        data = encoded(receipt)
+        path = f'private/pool-evidence-{digest(data)}.json'
+        atomic(self.project / path, data)
+        atomic(self.project / '.builder/native-evidence.json', encoded(dict(path=path, sha256=digest(data))))
+        return receipt
+
+    def test_card_pool_plan_survives_edits_without_reusing_native_pass(self):
+        self.mock_pool_evidence()
+        before = input_hash(self.project)
+        first = plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        self.assertEqual(input_hash(self.project), before)
+        self.assertEqual(first['kind'], 'planning')
+        self.assertEqual(first['expected_reward_cards'], 5)
+        self.assertEqual(first['deficits'], {'Common/Attack': 1, 'Uncommon/Skill': 1})
+        original = (self.project / BASELINE).read_bytes()
+        def edit_cards(cards):
+            attack = copy.deepcopy(next(c for c in cards if c['rarity'] == 'Common' and c['type'] == 'Attack'))
+            attack.update(id='NewAttack', name='An original idea')
+            cards.append(attack)
+            cards[-2]['name'] = 'Updated idea'
+        self.edit('design/cards.json', edit_cards)
+        generate(self.toolkit, self.project)
+        with self.assertRaisesRegex(BuilderError, 'stale'):
+            balance(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        result = plan_cards(self.toolkit, self.project)
+        self.assertEqual(result['deficits'], {'Uncommon/Skill': 1})
+        self.assertEqual(result['added_cards'], ['NewAttack'])
+        self.assertEqual(result['original_cards']['changed'], ['Brace'])
+        self.assertEqual(result['identical_mechanics'], [['NewAttack', 'Swing']])
+        self.assertEqual((self.project / BASELINE).read_bytes(), original)
+        self.assertEqual(result['basic_cards'], ['Strike', 'Guard', 'Practice'])
+        self.edit('design/cards.json', lambda cards: cards.__delitem__(next(i for i, c in enumerate(cards) if c['id'] == 'Swing')))
+        result = plan_cards(self.toolkit, self.project)
+        self.assertEqual(result['original_cards']['removed'], ['Swing'])
+        with self.assertRaisesRegex(BuilderError, 'already exists'):
+            plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        with self.assertRaisesRegex(BuilderError, 'stale'):
+            plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE', replace_baseline=True)
+        self.assertEqual((self.project / BASELINE).read_bytes(), original)
+
+    def test_card_pool_plan_rejects_missing_changed_and_foreign_evidence(self):
+        with self.assertRaisesRegex(BuilderError, 'No card-pool baseline'):
+            plan_cards(self.toolkit, self.project)
+        with self.assertRaisesRegex(BuilderError, 'passing current'):
+            plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        receipt = self.mock_pool_evidence()
+        with self.assertRaisesRegex(BuilderError, 'exact native comparator'):
+            plan_cards(self.toolkit, self.project, 'CHARACTER.UNKNOWN')
+        self.assertFalse((self.project / BASELINE).exists())
+        plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        baseline = (self.project / BASELINE).read_bytes()
+        with self.assertRaisesRegex(BuilderError, 'requires --comparator'):
+            plan_cards(self.toolkit, self.project, replace_baseline=True)
+        self.edit(BASELINE, lambda b: b.update(project='ForeignHero'))
+        with self.assertRaisesRegex(BuilderError, 'identity'):
+            plan_cards(self.toolkit, self.project)
+        atomic(self.project / BASELINE, baseline)
+        self.edit(BASELINE, lambda b: b['target_cells'].update({'Rare/Power': 99}))
+        with self.assertRaisesRegex(BuilderError, 'does not match'):
+            plan_cards(self.toolkit, self.project)
+        atomic(self.project / BASELINE, baseline)
+        evidence_path = read_json(self.project / '.builder/native-evidence.json')['path']
+        self.edit(evidence_path, lambda r: r.update(ok=False))
+        with self.assertRaisesRegex(BuilderError, 'changed or disappeared'):
+            plan_cards(self.toolkit, self.project)
+        atomic(self.project / evidence_path, encoded(receipt))
+        self.edit('character.json', lambda c: c.update(target='regular'))
+        with self.assertRaisesRegex(BuilderError, 'identity'):
+            plan_cards(self.toolkit, self.project)
+
+    def test_card_pool_plan_refresh_and_fallback(self):
+        self.mock_pool_evidence()
+        plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        self.edit('design/cards.json', lambda cards: cards[-1].update(name='Revised idea'))
+        generate(self.toolkit, self.project)
+        self.mock_pool_evidence()
+        # CLI uses the clean pinned toolkit and keeps the same report contract.
+        import json
+        result = json.loads(run([sys.executable, self.toolkit / 'scripts/character-builder.py', '--project', self.project,
+            'plan-cards', '--comparator', 'CHARACTER.FIXTURE', '--replace-baseline']))
+        self.assertEqual(result['original_cards']['changed'], [])
+        self.assertEqual(len(result['original_cards']['unchanged']), 8)
+        self.edit('character.json', lambda c: (c['features'].update(cards=False), c.update(starting_deck=[])))
+        atomic(self.project / 'design/cards.json', encoded([]))
+        with self.assertRaisesRegex(BuilderError, 'native fallback'):
+            plan_cards(self.toolkit, self.project)
+
+    def test_card_pool_plan_full_size_cells_still_require_fresh_verification(self):
+        # An artificial 85-card matrix tests scale and cross-distribution, not a game catalog or an authored full pool.
+        cells = {'Common/Attack': 18, 'Common/Skill': 18, 'Common/Power': 1,
+                 'Uncommon/Attack': 12, 'Uncommon/Skill': 17, 'Uncommon/Power': 5,
+                 'Rare/Attack': 5, 'Rare/Skill': 5, 'Rare/Power': 4}
+        native = [dict(rarity=cell.split('/')[0], type=cell.split('/')[1]) for cell, count in cells.items() for _ in range(count)]
+        self.mock_pool_evidence(native)
+        plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        original = read_json(self.project / 'design/cards.json')
+        cards = [c for c in original if c['rarity'] == 'Basic']
+        for index, target in enumerate(native):
+            card = copy.deepcopy(next(c for c in original if c['type'] == target['type'] and c['rarity'] != 'Basic'))
+            card.update(**target, id=f'FixtureCard{index}', name=f'Fixture {index}')
+            cards.append(card)
+        atomic(self.project / 'design/cards.json', encoded(cards))
+        generate(self.toolkit, self.project)
+        report = plan_cards(self.toolkit, self.project)
+        self.assertEqual(report['reward_cards'], 85)
+        self.assertTrue(report['distribution_matches'])
+        self.assertTrue(report['identical_mechanics'])
+        self.assertEqual(report['deficits'], {})
+        with self.assertRaisesRegex(BuilderError, 'stale'):
+            balance(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        self.mock_pool_evidence(native)
+        self.assertTrue(balance(self.toolkit, self.project, 'CHARACTER.FIXTURE')['native_parity']['matches'])
+        self.edit('design/cards.json', lambda cards: cards[-1].update(rarity='Common'))
+        report = plan_cards(self.toolkit, self.project)
+        self.assertEqual(report['reward_cards'], 85)
+        self.assertFalse(report['distribution_matches'])
+        self.assertEqual(report['deficits'], {'Rare/Power': 1})
+        self.assertEqual(report['excess'], {'Common/Power': 1})
 
     def test_closed_deterministic_package_and_stale_build(self):
         self.mock_build()
