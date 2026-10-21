@@ -116,6 +116,12 @@ def native_evidence(toolkit, root):
         expected_items = {row['id'] for row in items[group]}
         if set(actual) != expected_items or len(actual) != len(expected_items):
             raise BuilderError(f'Native evidence does not cover every authored {group}')
+    artwork = [(c.get('group'), c.get('id'), c.get('role'), c.get('asset'))
+               for c in receipt.get('checks', []) if c.get('check') == 'item-art']
+    expected_artwork = {(group, row['id'], role, asset) for group in ('relics', 'potions')
+                        for row in items[group] for role, asset in row.get('art', {}).items()}
+    if set(artwork) != expected_artwork or len(artwork) != len(expected_artwork):
+        raise BuilderError('Native evidence does not cover every item artwork role')
     events = load_events(toolkit, root, config)
     for label in ('authored-event', 'event-leave', 'event-resume'):
         actual = [(check.get('id'), check.get('choice') if label == 'authored-event' else None)

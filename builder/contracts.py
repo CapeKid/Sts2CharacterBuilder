@@ -92,6 +92,7 @@ def load_items(toolkit, root, config=None):
         config = read_json(contained(root, 'character.json'))
     if not config['features']['items'] and (items['relics'] or items['potions'] or 'starting_relic' in items):
         raise BuilderError('Custom items disabled: clear relics, potions and starting_relic')
+    declared = {a['path'] for a in read_json(contained(root, 'assets/manifest.json'))}
     for group in ('relics', 'potions'):
         # Native class-name conversion inserts word separators. Reserve ambiguous
         # underscore/case variants rather than discovering a collision at startup.
@@ -99,6 +100,15 @@ def load_items(toolkit, root, config=None):
         if len(ids) != len(set(ids)):
             raise BuilderError(f'Duplicate {group} IDs (including case/underscore variants)')
         for row in items[group]:
+            art = row.get('art', {})
+            if 'art' in row and not art:
+                raise BuilderError(f'{row["id"]}: item art needs at least one role, or omit art for native fallbacks')
+            if art and not config['features']['art']:
+                raise BuilderError(f'{row["id"]}: item art requires the art feature')
+            for asset in art.values():
+                contained(root, asset)
+                if asset not in declared or Path(asset).suffix.lower() not in {'.svg', '.png'}:
+                    raise BuilderError(f'{row["id"]}: item art must reference an exact declared SVG/PNG asset')
             if not any(row['effects'].values()):
                 raise BuilderError(f'{row["id"]}: item needs at least one supported effect')
             if row['effects']['focus'] and not config['features']['mechanic']:

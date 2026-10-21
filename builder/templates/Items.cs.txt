@@ -2,6 +2,8 @@
 using System.Text.Json;
 using BaseLib.Abstracts;
 using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -20,9 +22,55 @@ using MegaCrit.Sts2.Core.ValueProps;
 
 namespace @NAMESPACE@;
 
+public static partial class ModEntry
+{
+    static partial void InitializeItems() => ItemData.InitializeArt();
+}
+
 internal static class ItemData
 {
     private static readonly JsonElement Data = Load();
+    private static readonly Dictionary<string, string> ArtAssets = Data.GetProperty("relics").EnumerateArray().Concat(Data.GetProperty("potions").EnumerateArray())
+        .Where(row => row.TryGetProperty("art", out _)).SelectMany(row => row.GetProperty("art").EnumerateObject())
+        .Select(property => property.Value.GetString()!).Distinct(StringComparer.Ordinal).ToDictionary(Uri, asset => asset, StringComparer.Ordinal);
+    private static bool ArtInitialized;
+    internal static void InitializeArt()
+    {
+        if (ArtInitialized) return;
+        // Native UI can inline texture getters. Use virtual paths to registered
+        // resources instead. Decode on the main thread before native preloading.
+        foreach (var asset in ArtAssets.Values) RegisteredTexture(asset);
+        // BigIcon memoizes its resolved path and uses AssetCache instead of
+        // asking the virtual path again. Keep that route valid after unloads.
+        if (ArtAssets.Count > 0) {
+            var method = typeof(AssetCache).GetMethods(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                .Single(m => m.Name == "GetAsset" && !m.IsGenericMethod && m.GetParameters().Length == 1);
+            new Harmony(typeof(ModEntry).FullName + ".item-art").Patch(method,
+                prefix: new HarmonyMethod(typeof(ItemData), nameof(CachedArt)));
+        }
+        ArtInitialized = true;
+    }
+    private static string Uri(string asset) => "res://" + typeof(ModEntry).Namespace + "/builder-item-art/" + asset[7..];
+    private static Texture2D RegisteredTexture(string asset)
+    {
+        var texture = ModEntry.Texture(asset[7..]);
+        var uri = Uri(asset);
+        if (texture.ResourcePath != uri) texture.TakeOverPath(uri);
+        return texture;
+    }
+    private static bool CachedArt(string __0, ref Resource __result)
+    {
+        if (!ArtAssets.TryGetValue(__0, out var asset)) return true;
+        __result = RegisteredTexture(asset);
+        return false;
+    }
+    internal static string ArtPath(JsonElement row, string role, string fallback)
+    {
+        if (!row.TryGetProperty("art", out var art) || !art.TryGetProperty(role, out var path)) return fallback;
+        var asset = path.GetString()!;
+        RegisteredTexture(asset);
+        return Uri(asset);
+    }
     private static JsonElement Load()
     {
         using var doc = JsonDocument.Parse(@ITEMS_JSON@);
@@ -53,9 +101,9 @@ public abstract class AuthoredRelic : CustomRelicModel
     protected AuthoredRelic() : base(false) { }
     private JsonElement Row => ItemData.Row("relics", GetType().Name[6..]);
     public override RelicRarity Rarity => Enum.Parse<RelicRarity>(Row.GetProperty("rarity").GetString()!);
-    public override string PackedIconPath => ModelDb.Relic<BurningBlood>().PackedIconPath;
-    protected override string PackedIconOutlinePath => ModelDb.Relic<BurningBlood>().PackedIconPath;
-    protected override string BigIconPath => ModelDb.Relic<BurningBlood>().PackedIconPath;
+    public override string PackedIconPath => ItemData.ArtPath(Row, "icon", ModelDb.Relic<BurningBlood>().PackedIconPath);
+    protected override string PackedIconOutlinePath => ItemData.ArtPath(Row, "outline", ModelDb.Relic<BurningBlood>().PackedIconPath);
+    protected override string BigIconPath => ItemData.ArtPath(Row, "large", ModelDb.Relic<BurningBlood>().PackedIconPath);
     public override List<(string,string)> Localization => [
         ("title", Row.GetProperty("name").GetString()!),
         ("description", (Row.GetProperty("trigger").GetString() == "first-turn"
@@ -84,9 +132,9 @@ public abstract class AuthoredPotion : CustomPotionModel
     public override PotionRarity Rarity => Enum.Parse<PotionRarity>(Row.GetProperty("rarity").GetString()!);
     public override PotionUsage Usage => PotionUsage.CombatOnly;
     public override TargetType TargetType => TargetType.Self;
-    public override string CustomPackedImagePath => ModelDb.Potion<BlockPotion>().ImagePath;
-    public override string CustomPackedOutlinePath => ModelDb.Potion<BlockPotion>().OutlinePath ?? ModelDb.Potion<BlockPotion>().ImagePath;
-    public override string CustomLargeImagePath => ModelDb.Potion<BlockPotion>().ImagePath;
+    public override string CustomPackedImagePath => ItemData.ArtPath(Row, "icon", ModelDb.Potion<BlockPotion>().ImagePath);
+    public override string CustomPackedOutlinePath => ItemData.ArtPath(Row, "outline", ModelDb.Potion<BlockPotion>().OutlinePath ?? ModelDb.Potion<BlockPotion>().ImagePath);
+    public override string CustomLargeImagePath => ItemData.ArtPath(Row, "large", ModelDb.Potion<BlockPotion>().ImagePath);
     public override List<(string,string)> Localization => [
         ("title", Row.GetProperty("name").GetString()!), ("description", ItemData.Rules(Row.GetProperty("effects")))
     ];

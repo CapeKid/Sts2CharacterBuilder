@@ -50,6 +50,23 @@ def authored_events():
                  choices=[choice('Listen', heal=8)])]
 
 
+def item_art_assets():
+    def svg(color):
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="{color}"/><path d="M28 48L44 64L70 30" fill="none" stroke="#FFFFFF" stroke-width="8"/></svg>'.encode()
+    return {'assets/items/token.svg': svg('#57B8A7'), 'assets/items/outline.png': portrait_png(),
+            'assets/items/large token.svg': svg('#D6B66B')}
+
+
+def items_with_art():
+    items = authored_items()
+    art = dict(zip(('icon', 'outline', 'large'), item_art_assets()))
+    items['relics'][0]['art'] = art.copy()
+    items['potions'][0]['art'] = art.copy()
+    items['relics'][2]['art'] = {'outline': art['outline']}
+    items['potions'][1]['art'] = {'large': art['large']}
+    return items
+
+
 def authored_dialogue():
     rows = [dict(ancient=ancient, visit=visit, lines=[
         dict(speaker='Ancient', text='A quiet moment before the climb.', next='Answer'),
@@ -155,6 +172,43 @@ class ToolkitTests(unittest.TestCase):
         data = read_json(path) if path.exists() else {}
         data.update(schema_version=1, selection=authored_selection())
         atomic(path, encoded(data))
+
+    def add_item_art(self):
+        for path, data in item_art_assets().items():
+            atomic(self.project / path, data)
+            self.edit('assets/manifest.json', lambda rows: rows.append(dict(path=path, sha256=digest(data), method='original', license='MIT', credit='Original item test art')))
+        atomic(self.project / 'design/items.json', encoded(items_with_art()))
+
+    def test_item_art_contract_packaging_and_ownership(self):
+        self.add_item_art()
+        generate(self.toolkit, self.project)
+        before = input_hash(self.project)
+        original = items_with_art()
+        for change in (lambda d: d['relics'][0].update(art={}),
+                       lambda d: d['potions'][0]['art'].update(icon='assets/items/Token.svg'),
+                       lambda d: d['relics'][0]['art'].update(icon='assets/missing.png'),
+                       lambda d: d['relics'][0]['art'].update(icon='assets/../items/token.svg'),
+                       lambda d: d['potions'][0]['art'].update(extra='assets/icon.svg'),
+                       lambda d: d['potions'][0]['art'].update(icon='assets/bad.wav')):
+            data = copy.deepcopy(original); change(data)
+            atomic(self.project / 'design/items.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/items.json', encoded(original))
+        self.edit('character.json', lambda c: c['features'].update(art=False))
+        with self.assertRaisesRegex(BuilderError, 'art requires the art feature'): validate(self.toolkit, self.project)
+        self.edit('character.json', lambda c: c['features'].update(art=True))
+        self.mock_build()
+        with zipfile.ZipFile(stage(self.toolkit, self.project)['archive']) as archive:
+            for path, data in item_art_assets().items(): self.assertEqual(archive.read('TestHero/' + path), data)
+        frozen = read_json(self.project / 'design/model-ids.json')
+        self.edit('design/items.json', lambda d: d['relics'][0]['art'].pop('icon'))
+        generate(self.toolkit, self.project)
+        self.assertNotEqual(before, input_hash(self.project))
+        self.assertEqual(frozen, read_json(self.project / 'design/model-ids.json'))
+        source = self.project / 'src/Generated/Items.cs'
+        atomic(source, source.read_bytes() + b'// manual edit\n')
+        self.edit('design/items.json', lambda d: d['relics'][0].pop('art'))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'): generate(self.toolkit, self.project)
 
     def add_presentation(self):
         data = sprite_svg()
@@ -765,7 +819,7 @@ class ToolkitTests(unittest.TestCase):
         self.add_selection()
         self.add_audio()
         self.add_sprites()
-        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
@@ -776,6 +830,8 @@ class ToolkitTests(unittest.TestCase):
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
         checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'native-io', 'selection-controls')]
         checks += [dict(check='selection-art', role=key) for key in ('portrait', 'locked_portrait', 'background')]
+        checks += [dict(check='item-art', group=group, id=row['id'], role=role, asset=asset)
+                   for group in ('relics', 'potions') for row in items_with_art()[group] for role, asset in row.get('art', {}).items()]
         checks += [dict(check='presentation-resume', room='rest')]
         checks += [dict(check='room-presentation', room=key) for key in authored_presentation()['rooms']]
         checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
@@ -845,6 +901,10 @@ class ToolkitTests(unittest.TestCase):
             receipt['checks'] = selection_checks
             publish()
             with self.assertRaisesRegex(BuilderError, 'selection artwork'): native_evidence(self.toolkit, self.project)
+        for artwork in ([c for c in checks if c.get('check') != 'item-art'], checks + [dict(check='item-art', group='relics', id='Primer', role='icon', asset='assets/items/token.svg')]):
+            receipt['checks'] = artwork
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'item artwork'): native_evidence(self.toolkit, self.project)
         for room_checks in ([c for c in checks if c.get('check') != 'room-presentation'], checks + [dict(check='room-presentation', room='rest')]):
             receipt['checks'] = room_checks
             publish()
@@ -878,7 +938,7 @@ class ToolkitTests(unittest.TestCase):
         self.add_audio()
         self.add_sprites()
         self.add_portrait()
-        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))

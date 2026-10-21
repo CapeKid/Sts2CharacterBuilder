@@ -71,6 +71,67 @@
     }
 
 #if BUILDER_AUTHORED_ITEMS
+    private static void CheckItemArt(JsonElement row, AbstractModel model, bool record = false)
+    {
+        var group = model is RelicModel ? "relics" : "potions";
+        var art = row.TryGetProperty("art", out var configured) ? configured : default;
+        Texture2D?[] actual;
+        Texture2D?[] fallback;
+        var nodes = new List<Node>();
+        try {
+            if (model is RelicModel relic) {
+                var native = ModelDb.Relic<MegaCrit.Sts2.Core.Models.Relics.BurningBlood>();
+                var small = MegaCrit.Sts2.Core.Nodes.Relics.NRelic.Create(relic, MegaCrit.Sts2.Core.Nodes.Relics.NRelic.IconSize.Small);
+                var large = MegaCrit.Sts2.Core.Nodes.Relics.NRelic.Create(relic, MegaCrit.Sts2.Core.Nodes.Relics.NRelic.IconSize.Large);
+                nodes.Add(small); nodes.Add(large); Tree.Root.AddChild(small); Tree.Root.AddChild(large);
+                actual = [small.Icon.Texture, small.Outline.Texture, large.Icon.Texture];
+                fallback = [native.Icon, native.Icon, native.Icon]; // Explicit generated relic fallback paths.
+                Require(!large.Outline.Visible, "Native large relic outline behavior changed.");
+                small.Model = native;
+                Require(small.Icon.Texture.GetInstanceId() == native.Icon.GetInstanceId() && small.Outline.Texture.GetInstanceId() == native.IconOutline.GetInstanceId(), "Foreign relic UI art changed.");
+                small.Model = relic;
+                Require(small.Icon.Texture.GetInstanceId() == actual[0]!.GetInstanceId(), "Relic UI refresh lost art.");
+            } else {
+                var potion = (PotionModel)model;
+                var native = ModelDb.Potion<MegaCrit.Sts2.Core.Models.Potions.BlockPotion>();
+                var ui = MegaCrit.Sts2.Core.Nodes.Potions.NPotion.Create(potion);
+                nodes.Add(ui); Tree.Root.AddChild(ui);
+                actual = [ui.Image.Texture, ui.Outline.Texture, potion.LargeImage];
+                fallback = [native.Image, native.Outline, native.Image];
+                ui.Model = native;
+                Require(ui.Image.Texture.GetInstanceId() == native.Image.GetInstanceId() && ui.Outline.Texture.GetInstanceId() == native.Outline.GetInstanceId(), "Foreign potion UI art changed.");
+                ui.Model = potion;
+                Require(ui.Image.Texture.GetInstanceId() == actual[0]!.GetInstanceId(), "Potion UI refresh lost art.");
+            }
+            var roles = new[] { "icon", "outline", "large" };
+            for (var i = 0; i < roles.Length; i++) {
+                var role = roles[i];
+                if (art.ValueKind == JsonValueKind.Object && art.TryGetProperty(role, out var path)) {
+                    var asset = path.GetString()!;
+                    var texture = actual[i] ?? throw new InvalidDataException("Missing authored item texture.");
+                    var expected = ModEntry.Texture(asset[7..]);
+                    var file = Path.Combine(Path.GetDirectoryName(typeof(ModEntry).Assembly.Location)!, asset);
+                    using var source = new Image();
+                    var error = Path.GetExtension(file).Equals(".svg", StringComparison.OrdinalIgnoreCase)
+                        ? source.LoadSvgFromString(File.ReadAllText(file)) : source.LoadPngFromBuffer(File.ReadAllBytes(file));
+                    using var image = texture.GetImage();
+                    Require(error == Error.Ok && image.GetUsedRect().HasArea() && image.GetSize() == source.GetSize()
+                        && image.GetData().SequenceEqual(source.GetData()) && texture.GetInstanceId() == expected.GetInstanceId(),
+                        $"Item artwork pixels/cache differ: {group}/{row.GetProperty("id").GetString()}/{role}; size={image.GetSize()}/{source.GetSize()}, format={image.GetFormat()}/{source.GetFormat()}, cache={texture.GetInstanceId() == expected.GetInstanceId()}, pixels={image.GetData().SequenceEqual(source.GetData())}.");
+                    if (record) Checks.Add(new { check = "item-art", group, id = row.GetProperty("id").GetString(), role, asset, nativeUi = role != "large" || group == "relics", pixels = true, cache = true, foreignPreserved = true });
+                } else Require(actual[i]?.GetInstanceId() == fallback[i]?.GetInstanceId(), "Omitted item art did not retain its native fallback.");
+            }
+        }
+        finally { foreach (var node in nodes) { if (node.GetParent() != null) node.GetParent().RemoveChild(node); node.Free(); } }
+    }
+    private static void CheckResumedItemArt()
+    {
+        var player = Run.Players.Single();
+        foreach (var row in Request.GetProperty("items").GetProperty("relics").EnumerateArray())
+            CheckItemArt(row, player.Relics.Single(r => r.Id == Relic(row).Id));
+        foreach (var row in Request.GetProperty("items").GetProperty("potions").EnumerateArray())
+            if (player.Potions.FirstOrDefault(p => p.Id == Potion(row).Id) is {} potion) CheckItemArt(row, potion);
+    }
     private static RelicModel Relic(JsonElement row) => ModelDb.GetById<RelicModel>(ModelDb.GetId(
         typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Relic_" + row.GetProperty("id").GetString(), true)!));
     private static PotionModel Potion(JsonElement row) => ModelDb.GetById<PotionModel>(ModelDb.GetId(
@@ -103,6 +164,7 @@
     }
     private static async Task RelicCase(JsonElement row)
     {
+        CheckItemArt(row, Relic(row), record: true);
         var player = Run.Players.Single(); var canonical = Relic(row);
         Require(canonical.Icon != null && canonical.Icon.GetWidth() > 0 && canonical.BigIcon != null, "Relic fallback art missing.");
         Require(!canonical.DynamicDescription.GetFormattedText().Contains('{'), "Unresolved relic text.");
@@ -130,6 +192,7 @@
         Require(ItemStats(player) == after, "Relic applied twice in the same turn.");
         var restored = (AuthoredRelic)RelicModel.FromSerializable(relic.ToSerializable());
         Require(restored.Id == relic.Id && restored.LastTriggeredTurn == relic.LastTriggeredTurn, "Relic saved trigger changed.");
+        CheckItemArt(row, relic); CheckItemArt(row, restored);
         await RelicCmd.Replace(relic, restored); relic = restored;
         await relic.AfterPlayerTurnStart(context, player);
         Require(ItemStats(player) == after, "Relic trigger repeated after save/load.");
@@ -147,6 +210,7 @@
     }
     private static async Task PotionCase(JsonElement row)
     {
+        CheckItemArt(row, Potion(row), record: true);
         await Room(); await ResetItemStats();
         var player = Run.Players.Single(); var canonical = Potion(row);
         Require(canonical.Image.GetWidth() > 0 && !canonical.DynamicDescription.GetFormattedText().Contains('{'), "Potion fallback art/text missing.");
@@ -164,6 +228,7 @@
             && player.PotionSlots.SequenceEqual(slots), "Full belt procurement changed slots.");
         var saved = PotionModel.FromSerializable(potion.ToSerializable(player.PotionSlots.ToList().IndexOf(potion)));
         Require(saved.Id == potion.Id && saved.TargetType == potion.TargetType, "Potion save identity changed.");
+        CheckItemArt(row, potion); CheckItemArt(row, saved);
         var enemy = player.Creature.CombatState!.GetOpponentsOf(player.Creature).First(e => e.IsAlive);
         Require(!potion.IsValidTarget(enemy), "Self potion accepted an enemy.");
         potion.EnqueueManualUse(enemy);

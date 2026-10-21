@@ -39,6 +39,7 @@ public static partial class ModEntry
     static partial void InitializeAudio();
     static partial void InitializePresentation();
     static partial void InitializeSelection();
+    static partial void InitializeItems();
     public static void Initialize()
     {
 #if BUILDER_NATIVE_TESTS
@@ -58,6 +59,7 @@ public static partial class ModEntry
         InitializeAudio();
         InitializePresentation();
         InitializeSelection();
+        InitializeItems();
         GD.Print(@MOD_ID@ + " initialized (standalone character; BaseLib 3.4.7).");
     }
     private static void RestoreLocalization(LocManager __instance)

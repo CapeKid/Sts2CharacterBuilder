@@ -4,7 +4,7 @@ The generator supports a small numeric effect vocabulary. Keep bespoke implement
 
 Per-card SVG/PNG portraits use the optional data-driven `portrait` field; see [card art](ART.md). No extension override is needed for that supported path. `ModEntry.Texture` loads only SVG/PNG assets declared in the manifest, using paths relative to `assets/` (for example `cards/strike.png`). Other presentation behaviors still require project-owned code.
 
-Supported starting/drop relics and combat potions use optional `design/items.json`; see [items](ITEMS.md). Use extensions for effects, targets, art and timing outside that numeric contract.
+Supported starting/drop relics and combat potions, including declared normal/outline/large artwork, use optional `design/items.json`; see [items](ITEMS.md). Use extensions for effects, targets, visual behavior and timing outside that contract.
 
 The generated `Character`, `StarterRelic`, `FocusPower` and `ModEntry` are partial classes. Add presentation/lifecycle overrides in another part of the same class when the generator does not already define that member. For members already generated, use the hooks below or a separately implemented model. Do not duplicate an override in a partial class.
 
@@ -40,3 +40,6 @@ Short character effects can use [audio data](AUDIO.md). Generated Audio.cs owns 
 Generated room presentation owns rest/shop body replacement only where configured, plus the reserved `ModEntry.InitializePresentation` partial method. Do not install a second room-body replacer for the same scenes. Native inputs, thought bubbles, healing, merchant transactions and saves remain native; human layout/device and co-op campaign evidence are still required.
 
 Selection portraits/backgrounds can use the [presentation contract](PRESENTATION.md). Generated Selection.cs owns only configured character art and the reserved `ModEntry.InitializeSelection` partial method. Do not install another portrait/background replacer for the same selector. Native locks, focus and Back behavior remain native. Run-start transitions and ending art require separate extensions and evidence.
+## Item artwork ownership
+
+Generated `Items.cs` owns optional `art.icon`, `art.outline` and `art.large` image-path overrides, its namespace-specific cached resource paths and the reserved `ModEntry.InitializeItems` partial method. Declared SVG/PNG textures register before native preloading and recover after disposal. The native asset-cache hook recognizes only exact registered paths; unassigned roles retain native paths. Keep bespoke item types in project-owned source and do not duplicate generated overrides. See [items](ITEMS.md).
