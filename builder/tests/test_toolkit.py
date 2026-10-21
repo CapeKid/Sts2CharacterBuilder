@@ -13,9 +13,9 @@ from unittest.mock import patch
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run, starter_cards
-from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
+from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, validate_playtest_evidence, verify
 from builder.publishing import check_publish, prepare_publish, publication
 from builder.card_pool import BASELINE, plan_cards
 
@@ -28,6 +28,22 @@ def portrait_png():
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 2, 1, 8, 6, 0, 0, 0))
             + chunk(b'IDAT', zlib.compress(b'\x00\xff\x00\x00\xff\x00\xff\x00\xff')) + chunk(b'IEND', b''))
+
+
+def playtest_plan():
+    return dict(schema_version=1, scenarios=[dict(id='Defense', seed='FIXTURE-DEFENSE', encounter='NibbitsNormal',
+        ascension=0, policy='priority-lowest-hp', max_turns=1, max_plays=8,
+        deck=[dict(card='Strike', upgraded=False), dict(card='Guard', upgraded=True)], priority=['Guard', 'Strike'])])
+
+
+def synthetic_playtest():
+    # Contract-only fixture; these numbers are not native gameplay observations.
+    row = playtest_plan()['scenarios'][0]
+    start = dict(player_hp=70, block=0, energy=3, focus=1, enemy_hp=[20, 20])
+    final = dict(player_hp=65, block=0, energy=3, focus=1, enemy_hp=[20, 20])
+    return dict(check='archetype-playtest', scenario=row, starting_deck=row['deck'], outcome='turn-cap',
+        start=start, final=final, plays=[], turns=[dict(turn=1, plays=0, before=start, after=final)],
+        play_count=0, native_resources_unmodified=True, campaign=False, human_balance=False)
 
 
 def authored_items():
@@ -878,6 +894,58 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(plan['basic_cards'], ['Strike', 'Guard', 'Practice'])
         # Structural and synthetic evidence remain distinct from the owned-game receipt.
         self.assertEqual(plan['kind'], 'planning')
+        atomic(self.project / 'design/playtests.json', (self.toolkit / 'builder/examples/steady-path/playtests.json').read_bytes())
+        self.assertEqual(len(load_playtests(self.toolkit, self.project)), 6)
+        validate(self.toolkit, self.project)
+
+    def test_playtest_plan_contract_and_fingerprint(self):
+        before = input_hash(self.project)
+        path = self.project / 'design/playtests.json'
+        atomic(path, encoded(playtest_plan()))
+        self.assertNotEqual(input_hash(self.project), before)
+        self.assertEqual(len(load_playtests(self.toolkit, self.project)), 1)
+        validate(self.toolkit, self.project)
+        generate(self.toolkit, self.project, check=True)
+        self.assertEqual(balance(self.toolkit, self.project)['playtests']['status'], 'unperformed')
+        for field, value in [('max_turns', 0), ('max_plays', 61), ('ascension', 1), ('encounter', 'Unknown'), ('policy', 'search')]:
+            data = playtest_plan()
+            data['scenarios'][0][field] = value
+            atomic(path, encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        for mutate in (lambda r: r['deck'][0].update(card='Missing'), lambda r: r.update(priority=['Strike']),
+                       lambda r: r.update(priority=['Guard', 'Strike', 'Strike'])):
+            data = playtest_plan()
+            mutate(data['scenarios'][0])
+            atomic(path, encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        data = playtest_plan()
+        data['scenarios'] *= 2
+        atomic(path, encoded(data))
+        with self.assertRaisesRegex(BuilderError, 'Duplicate'): validate(self.toolkit, self.project)
+        data = playtest_plan()
+        data['scenarios'] = [dict(data['scenarios'][0], id=f'Trial{i}', max_turns=5) for i in range(6)]
+        atomic(path, encoded(data))
+        with self.assertRaisesRegex(BuilderError, 'total'): validate(self.toolkit, self.project)
+        atomic(path, encoded(dict(schema_version=1, scenarios=[])))
+        self.assertEqual(load_playtests(self.toolkit, self.project), [])
+        path.unlink()
+        self.assertEqual(input_hash(self.project), before)
+
+    def test_playtest_evidence_requires_declared_trials_and_stays_observational(self):
+        atomic(self.project / 'design/playtests.json', encoded(playtest_plan()))
+        receipt = self.mock_pool_evidence()
+        with self.assertRaisesRegex(BuilderError, 'every declared archetype'):
+            native_evidence(self.toolkit, self.project)
+        receipt['checks'].append(synthetic_playtest())
+        data = encoded(receipt)
+        atomic(self.project / 'private/playtest-evidence.json', data)
+        atomic(self.project / '.builder/native-evidence.json', encoded(dict(path='private/playtest-evidence.json', sha256=digest(data))))
+        self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        report = balance(self.toolkit, self.project)['playtests']
+        self.assertEqual(report['status'], 'recorded')
+        self.assertFalse(report['campaign'] or report['human_balance'])
+        self.edit('design/playtests.json', lambda p: p['scenarios'][0].update(seed='CHANGED'))
+        self.assertEqual(balance(self.toolkit, self.project)['playtests']['status'], 'stale')
 
     def test_closed_deterministic_package_and_stale_build(self):
         self.mock_build()
@@ -1323,6 +1391,7 @@ public static partial class ModEntry
         probe = probe.replace('@AUDIO_PROBE@', (self.toolkit / 'builder/templates/NativeAudio.cs.txt').read_text())
         probe = probe.replace('@PRESENTATION_PROBE@', (self.toolkit / 'builder/templates/NativePresentation.cs.txt').read_text())
         probe = probe.replace('@SELECTION_PROBE@', (self.toolkit / 'builder/templates/NativeSelection.cs.txt').read_text())
+        probe = probe.replace('@PLAYTEST_PROBE@', (self.toolkit / 'builder/templates/NativePlaytests.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -1359,6 +1428,40 @@ public static partial class ModEntry
         self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
         self.assertTrue((self.project / 'src/Generated/Selection.cs').exists())
 
+
+
+class PlaytestEvidenceTests(unittest.TestCase):
+    def test_caps_losses_and_victories_are_observations(self):
+        row = playtest_plan()['scenarios'][0]
+        for outcome in ('turn-cap', 'defeat', 'victory'):
+            trial = copy.deepcopy(synthetic_playtest())
+            trial['outcome'] = outcome
+            if outcome == 'defeat': trial['final']['player_hp'] = 0
+            if outcome == 'victory': trial['final']['enemy_hp'] = [0, 0]
+            validate_playtest_evidence([row], [trial])
+            self.assertFalse(trial['campaign'] or trial['human_balance'])
+        trial = copy.deepcopy(synthetic_playtest())
+        trial['scenario']['max_plays'] = 1
+        trial.update(outcome='play-cap', play_count=1)
+        trial['turns'][0]['plays'] = 1
+        trial['plays'] = [dict(turn=1, card='Guard', upgraded=True, target_slot=-1, after=trial['final'])]
+        validate_playtest_evidence([trial['scenario']], [trial])
+
+    def test_incomplete_or_relabelled_observations_fail(self):
+        row = playtest_plan()['scenarios'][0]
+        good = synthetic_playtest()
+        for checks in ([], [good, good]):
+            with self.assertRaises(BuilderError): validate_playtest_evidence([row], checks)
+        mutations = [lambda t: t['scenario'].update(seed='OTHER'), lambda t: t.update(human_balance=True),
+                     lambda t: t.update(native_resources_unmodified=False), lambda t: t.update(starting_deck=[]),
+                     lambda t: t.update(plays=[dict(turn=1, card='Strike')]), lambda t: t.update(turns=[]),
+                     lambda t: t['final'].update(enemy_hp=[]), lambda t: t['final'].update(player_hp=-1),
+                     lambda t: t.update(outcome='victory'), lambda t: t.update(outcome='defeat'),
+                     lambda t: t.update(outcome='play-cap'), lambda t: t.update(play_count=9)]
+        for mutate in mutations:
+            trial = copy.deepcopy(good)
+            mutate(trial)
+            with self.assertRaises(BuilderError): validate_playtest_evidence([row], [trial])
 
 
 class RecordedExampleTests(unittest.TestCase):

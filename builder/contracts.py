@@ -84,6 +84,34 @@ def check_schema(value, spec, label='$'):
             raise BuilderError(f'{label}: number outside bounds')
 
 
+def load_playtests(toolkit, root, config=None, cards=None):
+    path = contained(root, 'design/playtests.json')
+    if not path.exists():
+        return []
+    plan = read_json(path)
+    check_schema(plan, read_json(toolkit / 'builder/playtests.schema.json'), '$playtests')
+    if config is None:
+        config = read_json(contained(root, 'character.json'))
+    if cards is None:
+        cards = read_json(contained(root, 'design/cards.json'))
+    rows = plan['scenarios']
+    if rows and not config['features']['cards']:
+        raise BuilderError('Archetype playtests require generated custom cards')
+    ids = [r['id'].casefold() for r in rows]
+    if len(ids) != len(set(ids)):
+        raise BuilderError('Duplicate playtest scenario IDs')
+    if sum(r['max_turns'] for r in rows) > 24 or sum(r['max_plays'] for r in rows) > 180:
+        raise BuilderError('Playtests exceed the total 24-turn/180-play budget')
+    known = {c['id'] for c in cards}
+    for row in rows:
+        deck = {c['card'] for c in row['deck']}
+        if not deck <= known:
+            raise BuilderError(f'{row["id"]}: unknown playtest deck card')
+        if len(row['priority']) != len(set(row['priority'])) or set(row['priority']) != deck:
+            raise BuilderError(f'{row["id"]}: priority must list every distinct deck card exactly once')
+    return rows
+
+
 def load_items(toolkit, root, config=None):
     path = contained(root, 'design/items.json')
     items = read_json(path) if path.exists() else dict(schema_version=1, relics=[], potions=[])
@@ -394,6 +422,7 @@ def validate(toolkit, root):
     load_sprites(toolkit, root, config)
     load_presentation(toolkit, root, config)
     load_audio(toolkit, root, config)
+    load_playtests(toolkit, root, config, cards)
     declared = {asset['path'] for asset in manifest}
     for card in cards:
         if 'portrait' not in card:
@@ -411,7 +440,7 @@ def validate(toolkit, root):
 def input_hash(root):
     root = Path(root).resolve()
     files = [contained(root, p) for p in ('character.json', 'builder.lock.json', 'design/cards.json', 'assets/manifest.json')]
-    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json', 'design/audio.json', 'design/presentation.json'):
+    for relative in ('design/items.json', 'design/events.json', 'design/dialogue.json', 'design/sprites.json', 'design/audio.json', 'design/presentation.json', 'design/playtests.json'):
         optional = contained(root, relative)
         if optional.exists():
             files.append(optional)

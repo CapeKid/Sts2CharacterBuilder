@@ -9,7 +9,7 @@ import subprocess
 import time
 import uuid
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from .project import atomic, generate
 from .verification import build, pin_check, source_hash
 
@@ -163,6 +163,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
     probe = probe.replace('@AUDIO_PROBE@', (toolkit / 'builder/templates/NativeAudio.cs.txt').read_text(encoding='utf-8'))
     probe = probe.replace('@PRESENTATION_PROBE@', (toolkit / 'builder/templates/NativePresentation.cs.txt').read_text(encoding='utf-8'))
     probe = probe.replace('@SELECTION_PROBE@', (toolkit / 'builder/templates/NativeSelection.cs.txt').read_text(encoding='utf-8'))
+    probe = probe.replace('@PLAYTEST_PROBE@', (toolkit / 'builder/templates/NativePlaytests.cs.txt').read_text(encoding='utf-8'))
     probe_path = contained(root, '.builder/NativeProbe.cs')
     atomic(probe_path, probe.encode())
     test_output = contained(root, 'build/native-tests')
@@ -193,6 +194,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
                    sprites=load_sprites(toolkit, root, config),
                    audio=load_audio(toolkit, root, config),
                    presentation=load_presentation(toolkit, root, config),
+                   playtests=load_playtests(toolkit, root, config, cards),
                    focus_starter=config['features']['items'] and config['features']['mechanic'] and
                                  'starting_relic' not in items)
     atomic(lab / 'request.json', encoded(request))

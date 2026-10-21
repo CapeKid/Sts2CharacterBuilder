@@ -1,0 +1,89 @@
+    // Scripted observations only. Defeat and cap stops are valid outcomes, never tuning instructions.
+    private static async Task ArchetypePlaytests()
+    {
+        foreach (var row in Request.GetProperty("playtests").EnumerateArray()) {
+            Progress("archetype:" + row.GetProperty("id").GetString());
+            await NGame.Instance!.ReturnToMainMenu();
+            var deck = row.GetProperty("deck").EnumerateArray().ToArray();
+            var design = Request.GetProperty("cards").EnumerateArray().ToDictionary(r => r.GetProperty("id").GetString()!);
+            var oldDeck = ExtensionHooks.StartingDeck;
+            try {
+                ExtensionHooks.StartingDeck = () => deck.Select(r => AuthoredCard(design[r.GetProperty("card").GetString()!]));
+                await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
+                    ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], row.GetProperty("seed").GetString()!, GameMode.Standard, 0);
+            } finally { ExtensionHooks.StartingDeck = oldDeck; }
+            SaveManager.Instance.SetFtuesEnabled(false);
+            var player = Run.Players.Single();
+            Require(player.Deck.Cards.Count == deck.Length, "Archetype starting deck size differs.");
+            var remaining = player.Deck.Cards.ToList();
+            foreach (var slot in deck) {
+                var id = AuthoredCard(design[slot.GetProperty("card").GetString()!]).Id;
+                var card = remaining.FirstOrDefault(c => c.Id == id);
+                Require(card != null, "Archetype starting deck identity differs.");
+                remaining.Remove(card!);
+                if (slot.GetProperty("upgraded").GetBoolean()) CardCmd.Upgrade(card!);
+                Require(card!.IsUpgraded == slot.GetProperty("upgraded").GetBoolean(), "Archetype starting upgrade differs.");
+            }
+            var startingDeck = player.Deck.Cards.Select(c => new { card = c.GetType().Name[5..], upgraded = c.IsUpgraded }).ToArray();
+            // Room() enters an ordinary Nibbits encounter, with native HP, Energy, draws, relics and enemy turns.
+            await Room();
+            var creature = player.Creature;
+            var combat = creature.CombatState!;
+            var foes = combat.Enemies.ToArray();
+            var priority = row.GetProperty("priority").EnumerateArray().Select(v => v.GetString()!).ToArray();
+            var plays = new List<object>();
+            var turns = new List<object>();
+            var playCount = 0;
+            var maxPlays = row.GetProperty("max_plays").GetInt32();
+            var maxTurns = row.GetProperty("max_turns").GetInt32();
+            bool Terminal() => !creature.IsAlive || foes.All(e => !e.IsAlive);
+            object Snapshot() => new {
+                player_hp = creature.CurrentHp, block = creature.Block,
+                energy = player.PlayerCombatState?.Energy ?? 0,
+                focus = creature.Powers.Where(p => p.GetType().Assembly == typeof(ModEntry).Assembly && p.GetType().Name == "FocusPower").Sum(p => p.Amount),
+                enemy_hp = foes.Select(e => e.CurrentHp).ToArray()
+            };
+            var start = Snapshot();
+            var outcome = "turn-cap";
+            for (var turn = 1; turn <= maxTurns; turn++) {
+                var startTurn = Snapshot();
+                var playsBefore = playCount;
+                while (!Terminal() && playCount < maxPlays) {
+                    CardModel? selected = null;
+                    var targetSlot = -1;
+                    foreach (var key in priority) {
+                        var id = AuthoredCard(design[key]).Id;
+                        foreach (var card in player.PlayerCombatState!.Hand.Cards.Where(c => c.Id == id).ToArray()) {
+                            var target = foes.Where(e => e.IsAlive).OrderBy(e => e.CurrentHp).FirstOrDefault();
+                            if (target == null) break;
+                            if (!card.TryManualPlay(card.TargetType == TargetType.AnyEnemy ? target : null)) continue;
+                            selected = card;
+                            targetSlot = card.TargetType == TargetType.AnyEnemy ? Array.IndexOf(foes, target) : -1;
+                            break;
+                        }
+                        if (selected != null) break;
+                    }
+                    if (selected == null) break;
+                    playCount++;
+                    var played = selected;
+                    await Wait(() => played.Pile?.Type is not (PileType.Hand or PileType.Play), "Archetype card did not resolve.");
+                    await Wait(() => !RunManager.Instance.ActionExecutor.IsRunning && NCard.FindOnTable(played) == null, "Archetype action did not settle.");
+                    plays.Add(new { turn, card = played.GetType().Name[5..], upgraded = played.IsUpgraded, target_slot = targetSlot, after = Snapshot() });
+                }
+                if (!Terminal() && playCount < maxPlays) {
+                    var before = player.PlayerCombatState!.TurnNumber;
+                    CombatManager.Instance.SetReadyToEndTurn(player, false);
+                    await Wait(() => Terminal() || (player.PlayerCombatState?.TurnNumber > before
+                        && player.PlayerCombatState.Phase == PlayerTurnPhase.Play && !RunManager.Instance.ActionExecutor.IsRunning), "Archetype enemy turn did not complete.");
+                    if (!Terminal()) await SettleItemHooks();
+                }
+                turns.Add(new { turn, plays = playCount - playsBefore, before = startTurn, after = Snapshot() });
+                if (Terminal()) { outcome = creature.IsAlive ? "victory" : "defeat"; break; }
+                if (playCount >= maxPlays) { outcome = "play-cap"; break; }
+            }
+            Checks.Add(new { check = "archetype-playtest", scenario = row.Clone(), outcome,
+                starting_deck = startingDeck, start, final = Snapshot(), plays, turns, play_count = playCount,
+                relics = player.Relics.Select(r => r.Id.ToString()).ToArray(),
+                native_resources_unmodified = true, campaign = false, human_balance = false });
+        }
+    }
