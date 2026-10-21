@@ -163,6 +163,15 @@ def native_evidence(toolkit, root):
     expected_audio = set(audio['cues']) if audio else set()
     if set(actual) != expected_audio or len(actual) != len(expected_audio):
         raise BuilderError('Native evidence does not cover every audio cue')
+    event_fields = {
+        'hurt': ('hpDamage', 'blockedAndZero', 'foreignTarget', 'directHpChange', 'lethalFairy', 'afterRevive'),
+        'victory': ('nativeWin', 'duplicateSuppressed', 'freshCombat'),
+    }
+    controls = [c for c in receipt.get('checks', []) if c.get('check') == 'audio-event-controls']
+    expected_events = expected_audio & set(event_fields)
+    if ({c.get('cue') for c in controls} != expected_events or len(controls) != len(expected_events)
+            or any(c.get(field) is not True for c in controls for field in event_fields.get(c.get('cue'), ()))):
+        raise BuilderError('Native evidence does not cover every audio event control')
     presentation = load_presentation(toolkit, root, config)
     rooms = set(presentation.get('rooms', {})) if presentation else set()
     actual = [c.get('room') for c in receipt.get('checks', []) if c.get('check') == 'room-presentation']
@@ -338,7 +347,7 @@ def verify(toolkit, root):
             'Full-pool native comparator and human balance playtests unperformed',
             'Physical Deck/controller and co-op unverified', 'Workshop upload/download verification unperformed']
     if config['features']['audio']:
-        gaps.append('audio: audible/hardware review, hurt/victory cues and compressed/looped audio remain separate')
+        gaps.append('audio: audible/hardware review and compressed/looped audio remain separate')
         if not load_audio(toolkit, root, config):
             gaps.append('audio: enabled without authored data; project-owned extensions require separate native evidence')
     if config['features']['events'] and not load_events(toolkit, root, config):

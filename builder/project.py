@@ -236,7 +236,7 @@ def generated(toolkit, root):
                       'attack': 'CustomAttackSfx', 'cast': 'CustomCastSfx', 'death': 'CustomDeathSfx'}
         replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
                             AUDIO_JSON=quote(json.dumps(audio, ensure_ascii=True)),
-                            AUDIO_PROPERTIES='\n'.join(f'    public override string {properties[k]} => CharacterAudio.Uri({quote(k)});' for k in audio['cues']))
+                            AUDIO_PROPERTIES='\n'.join(f'    public override string {properties[k]} => CharacterAudio.Uri({quote(k)});' for k in audio['cues'] if k in properties))
         template = (toolkit / 'builder/templates/Audio.cs.txt').read_text()
         outputs['src/Generated/Audio.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     presentation = load_presentation(toolkit, root, config)

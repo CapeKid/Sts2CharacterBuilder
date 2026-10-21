@@ -30,13 +30,21 @@
                 var route = cue.Name switch {
                     "select" => character.CharacterSelectSfx, "transition" => character.CharacterTransitionSfx,
                     "attack" => character.AttackSfx, "cast" => character.CastSfx, "death" => character.DeathSfx,
+                    "hurt" or "victory" => CharacterAudio.Uri(cue.Name),
                     _ => throw new InvalidDataException("Unknown audio cue.") };
                 Require(route == CharacterAudio.Uri(cue.Name), "Native character getter did not select authored sound.");
                 // Exercise native animation/death commands for their actual SFX calls.
                 // Selection/transition use the native getter and manager, without UI claims.
                 AudioPlayed.Clear();
+                var victoryState = creature.CombatState!;
                 if (cue.Name is "attack" or "cast") await CreatureCmd.TriggerAnim(creature, cue.Name == "attack" ? "Attack" : "Cast", 0f);
                 else if (cue.Name == "death") { creature.GetCreatureNode()!.StartDeathAnim(false); }
+                else if (cue.Name == "hurt") {
+                    creature.SetCurrentHpInternal(creature.MaxHp); creature.LoseBlockInternal(creature.Block);
+                    await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), creature, 1m,
+                        MegaCrit.Sts2.Core.ValueProps.ValueProp.Unpowered | MegaCrit.Sts2.Core.ValueProps.ValueProp.Unblockable, null, null);
+                }
+                else if (cue.Name == "victory") await WinAudioCombat();
                 else manager.PlayOneShot(route, 0.5f);
                 Require(AudioPlayed.SequenceEqual(new[] { route }), "Native SFX command did not create exactly one authored voice: " + cue.Name);
                 foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
@@ -47,6 +55,18 @@
                 Require(Math.Abs(active.Player.VolumeLinear - gain * 0.5f * 0.25f * 0.16f) < 0.00001f, "Audio gain differs from native volume curve.");
                 foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
                 if (cue.Name == "death") creature.GetCreatureNode()!.StartReviveAnim();
+                if (cue.Name == "hurt") await HurtAudioControls();
+                if (cue.Name == "victory") {
+                    AudioPlayed.Clear();
+                    AccessTools.Method(typeof(CharacterAudio), "VictorySound").Invoke(null, [victoryState]);
+                    Require(AudioPlayed.Count == 0, "Repeated victory callback replayed the cue.");
+                    await Room(); AudioPlayed.Clear();
+                    await WinAudioCombat();
+                    Require(AudioPlayed.SequenceEqual(new[] { route }), "Next combat lost or duplicated its victory cue.");
+                    await Room();
+                    foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+                    Checks.Add(new { check = "audio-event-controls", cue = "victory", nativeWin = true, duplicateSuppressed = true, freshCombat = true });
+                }
                 Checks.Add(new { check = "audio-cue", cue = cue.Name, pcmBytes = pcm.Length, rate, channels, cached = true, nativeRoute = true });
             }
             var first = CharacterAudio.Cues.EnumerateObject().First().Name;
@@ -93,6 +113,45 @@
     }
 
 #if BUILDER_AUTHORED_AUDIO
+    private static async Task WinAudioCombat()
+    {
+        var creature = Run.Players.Single().Creature;
+        foreach (var enemy in creature.CombatState!.GetOpponentsOf(creature).Where(e => e.IsAlive).ToArray()) await CreatureCmd.Kill(enemy);
+        Require(await CombatManager.Instance.CheckWinCondition(), "Audio victory fixture did not end combat.");
+        await Wait(() => AudioPlayed.Contains(CharacterAudio.Uri("victory")), "Native victory did not route its cue.");
+    }
+    private static async Task HurtAudioControls()
+    {
+        var player = Run.Players.Single(); var creature = player.Creature;
+        var context = new BlockingPlayerChoiceContext();
+        var unpowered = MegaCrit.Sts2.Core.ValueProps.ValueProp.Unpowered;
+        var unblockable = unpowered | MegaCrit.Sts2.Core.ValueProps.ValueProp.Unblockable;
+        AudioPlayed.Clear();
+        await CreatureCmd.GainBlock(creature, 5m, unpowered, null);
+        var hp = creature.CurrentHp;
+        await CreatureCmd.Damage(context, creature, 3m, unpowered, null, null);
+        Require(creature.CurrentHp == hp && AudioPlayed.Count == 0, "Blocked damage played the hurt cue.");
+        await CreatureCmd.Damage(context, creature, 0m, unblockable, null, null);
+        Require(AudioPlayed.Count == 0, "Zero damage played the hurt cue.");
+        var enemy = creature.CombatState!.GetOpponentsOf(creature).First(e => e.IsAlive);
+        await CreatureCmd.Damage(context, enemy, 1m, unblockable, null, null);
+        Require(AudioPlayed.Count == 0, "Foreign target played this character's hurt cue.");
+        creature.SetCurrentHpInternal(hp - 1); creature.SetCurrentHpInternal(hp);
+        Require(AudioPlayed.Count == 0, "Direct HP refresh played the hurt cue.");
+        creature.LoseBlockInternal(creature.Block);
+        var fairy = ModelDb.Potion<MegaCrit.Sts2.Core.Models.Potions.FairyInABottle>().ToMutable();
+        Require((await PotionCmd.TryToProcure(fairy, player)).success, "Audio Fairy control could not procure potion.");
+        creature.SetCurrentHpInternal(1);
+        await CreatureCmd.Damage(context, creature, 10m, unblockable, null, null);
+        Require(creature.IsAlive && creature.CurrentHp > 0 && !player.Potions.Contains(fairy), "Audio Fairy control failed to revive/consume.");
+        Require(!AudioPlayed.Contains(CharacterAudio.Uri("hurt")), "Lethal damage incorrectly played the nonlethal hurt cue.");
+        AudioPlayed.Clear();
+        await CreatureCmd.Damage(context, creature, 1m, unblockable, null, null);
+        Require(AudioPlayed.SequenceEqual(new[] { CharacterAudio.Uri("hurt") }), "Hurt cue did not recover after Fairy revival.");
+        foreach (var voice in CharacterAudio.Voices.ToArray()) CharacterAudio.Retire(voice);
+        Checks.Add(new { check = "audio-event-controls", cue = "hurt", hpDamage = true, blockedAndZero = true,
+            foreignTarget = true, directHpChange = true, lethalFairy = true, afterRevive = true });
+    }
     private static readonly List<string> AudioPlayed = new();
     private static void ObserveAudio(string path, bool __result)
     {

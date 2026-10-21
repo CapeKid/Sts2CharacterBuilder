@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "kind": "native-audio-events",
+  "trials": [
+    {
+      "character": "AudioEventsTrial",
+      "toolkit_commit": "12c3d62d0aad2f67d33e8416f2d1844f36db4b75",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "check_count": 68,
+      "executed_check_count": 63,
+      "skipped_sentinel_count": 5,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "audio-cue": 7,
+        "audio-event-controls": 2,
+        "audio-controls": 1,
+        "sprite-integration": 1,
+        "sprite-state": 6,
+        "sprite-fairy-revive": 3,
+        "sprite-victory": 1,
+        "sprite-reset": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "sprite-resume": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "event-pools": 1,
+        "dialogue-controls": 1,
+        "item-pools": 1
+      },
+      "features": {
+        "mechanic": true,
+        "cards": true,
+        "art": true,
+        "items": true,
+        "events": false,
+        "dialogue": false,
+        "sprites": true,
+        "presentation": true,
+        "audio": true
+      },
+      "cues": [
+        {
+          "check": "audio-cue",
+          "cue": "select",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "transition",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "attack",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "cast",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "death",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "hurt",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "victory",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        }
+      ],
+      "event_controls": [
+        {
+          "check": "audio-event-controls",
+          "cue": "hurt",
+          "hpDamage": true,
+          "blockedAndZero": true,
+          "foreignTarget": true,
+          "directHpChange": true,
+          "lethalFairy": true,
+          "afterRevive": true
+        },
+        {
+          "check": "audio-event-controls",
+          "cue": "victory",
+          "nativeWin": true,
+          "duplicateSuppressed": true,
+          "freshCombat": true
+        }
+      ],
+      "sprite_fairy_cases": [
+        "lethal-hit",
+        "held-death-pose",
+        "repeated-lethal-hit"
+      ],
+      "package": {
+        "sha256": "83f15f65174706cb22a80786e53ebe60d792e819da168915eeee63f1b65f295f",
+        "payload_files": 9,
+        "declared_wav_matches": true,
+        "probe_excluded": true
+      },
+      "input_sha256": "6b6e165da835e57cee783bf819f00e8c56a5dc9b5f959fed8ec1665c3234b06f",
+      "source_sha256": "2d7970adbcdfab0c98af7c4c36f40cbda17e0a3952df1a8cc58963715c9a889e",
+      "release_dll_sha256": "f05e425d8aafb7fe4f0d70a357a82baaf568f46887da3a8f26a0b905d71abe77",
+      "test_dll_sha256": "87b83bde8676bc42607e29ae59696c78a34bb837796a7dc2d4945bef59d2ba70",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "6b92659a6c7ea528ccd3bae418805ad72702e1675b882a9aced904959fa95cde"
+    },
+    {
+      "character": "AudioEventsOnlyTrial",
+      "toolkit_commit": "12c3d62d0aad2f67d33e8416f2d1844f36db4b75",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "check_count": 19,
+      "executed_check_count": 12,
+      "skipped_sentinel_count": 7,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "audio-event-controls": 2,
+        "audio-cue": 2,
+        "audio-controls": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "event-pools": 1,
+        "dialogue-controls": 1,
+        "sprite-integration": 1,
+        "item-pools": 1,
+        "resource-turn": 1
+      },
+      "features": {
+        "mechanic": false,
+        "cards": false,
+        "art": true,
+        "items": false,
+        "events": false,
+        "dialogue": false,
+        "sprites": false,
+        "presentation": true,
+        "audio": true
+      },
+      "cues": [
+        {
+          "check": "audio-cue",
+          "cue": "victory",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        },
+        {
+          "check": "audio-cue",
+          "cue": "hurt",
+          "pcmBytes": 128000,
+          "rate": 16000,
+          "channels": 2,
+          "cached": true,
+          "nativeRoute": true
+        }
+      ],
+      "event_controls": [
+        {
+          "check": "audio-event-controls",
+          "cue": "victory",
+          "nativeWin": true,
+          "duplicateSuppressed": true,
+          "freshCombat": true
+        },
+        {
+          "check": "audio-event-controls",
+          "cue": "hurt",
+          "hpDamage": true,
+          "blockedAndZero": true,
+          "foreignTarget": true,
+          "directHpChange": true,
+          "lethalFairy": true,
+          "afterRevive": true
+        }
+      ],
+      "sprite_fairy_cases": [],
+      "package": {
+        "sha256": "e563e2df25719353a43e41d9dc853af1ca04850ab08d0be68bafd9ce4c86ded0",
+        "payload_files": 8,
+        "declared_wav_matches": true,
+        "probe_excluded": true
+      },
+      "input_sha256": "3d5c40a11ecb3291f3cd4afe6a06b73ad7a23881c2f34e9e423d0aafa422db05",
+      "source_sha256": "87ed9e9bb4e9f33c1f9fdb5dba303e0eefe6a36fd35463af21fbbba3421ea0e1",
+      "release_dll_sha256": "6255db2d2f0ffbbd4848d77f6730c9233b82cb0d1b263d08e2ea1b889176ea72",
+      "test_dll_sha256": "9847ed54e8f3acf0786211d51cdaf0e3e132ed0f7885fafb7568807ef28dcf72",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "d445b82f6b81ac98630baa9a182eea9747a719eac362297e74afaf2e38e98a72"
+    }
+  ],
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Headless routing/mixing is not audible quality or hardware validation",
+    "Owned public-beta v0.111.0 only; regular branch, device, co-op and human review remain"
+  ]
+}

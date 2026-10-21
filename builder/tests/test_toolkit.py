@@ -123,7 +123,7 @@ def audio_wav(channels=1, seconds=2, sample=4000):
 
 def authored_audio():
     return dict(schema_version=1, cues={key: dict(asset='assets/audio/pulse.wav', gain_percent=35)
-                for key in ('select', 'transition', 'attack', 'cast', 'death')})
+                for key in ('select', 'transition', 'attack', 'cast', 'death', 'hurt', 'victory')})
 
 
 def authored_presentation():
@@ -1113,7 +1113,7 @@ class ToolkitTests(unittest.TestCase):
         for mutate in (lambda d: d['cues']['attack'].update(gain_percent=101),
                        lambda d: d['cues']['attack'].update(asset='assets/audio/Pulse.wav'),
                        lambda d: d['cues']['attack'].update(asset='assets/icon.svg'),
-                       lambda d: d['cues'].update(victory=d['cues']['attack']),
+                       lambda d: d['cues'].update(ambient=d['cues']['attack']),
                        lambda d: d.update(cues={})):
             data = authored_audio(); mutate(data)
             atomic(self.project / 'design/audio.json', encoded(data))
@@ -1126,6 +1126,19 @@ class ToolkitTests(unittest.TestCase):
         self.assertFalse((self.project / 'src/Generated/Audio.cs').exists())
         (self.project / 'design/audio.json').unlink()
         self.assertIsNone(load_audio(self.toolkit, self.project))
+
+    def test_audio_event_only_subsets_preserve_native_getters(self):
+        self.add_audio()
+        for roles in (('hurt',), ('victory',), ('hurt', 'victory')):
+            atomic(self.project / 'design/audio.json', encoded(dict(schema_version=1,
+                   cues={k: authored_audio()['cues'][k] for k in roles})))
+            generate(self.toolkit, self.project)
+            self.assertEqual(set(load_audio(self.toolkit, self.project)['cues']), set(roles))
+            source = (self.project / 'src/Generated/Audio.cs').read_text()
+            self.assertNotIn('override string', source)
+            self.mock_build()
+            with zipfile.ZipFile(stage(self.toolkit, self.project)['archive']) as archive:
+                self.assertEqual(archive.read('TestHero/assets/audio/pulse.wav'), audio_wav(channels=2))
 
     def test_audio_pcm_bounds_and_metadata(self):
         for channels in (1, 2):
@@ -1222,6 +1235,9 @@ class ToolkitTests(unittest.TestCase):
         checks += [dict(check='presentation-resume', room='rest')]
         checks += [dict(check='room-presentation', room=key) for key in authored_presentation()['rooms']]
         checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
+        checks += [dict(check='audio-event-controls', cue='hurt', hpDamage=True, blockedAndZero=True,
+                        foreignTarget=True, directHpChange=True, lethalFairy=True, afterRevive=True),
+                   dict(check='audio-event-controls', cue='victory', nativeWin=True, duplicateSuppressed=True, freshCombat=True)]
         checks += [dict(check='sprite-state', state=state) for state in authored_sprites()['states']]
         checks += [dict(check='sprite-fairy-revive', case=key) for key in ('lethal-hit', 'held-death-pose', 'repeated-lethal-hit')]
         checks += [dict(check='paid-card', card=card['id'], upgraded=upgrade) for card in cards for upgrade in (False, True)]
@@ -1329,6 +1345,11 @@ class ToolkitTests(unittest.TestCase):
             receipt['checks'] = audio_checks
             publish()
             with self.assertRaisesRegex(BuilderError, 'audio cue'): native_evidence(self.toolkit, self.project)
+        controls = [c for c in checks if c.get('check') == 'audio-event-controls']
+        for invalid in ([], controls * 2, [dict(c, **{('afterRevive' if c['cue'] == 'hurt' else 'freshCombat'): False}) for c in controls]):
+            receipt['checks'] = [c for c in checks if c.get('check') != 'audio-event-controls'] + invalid
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'audio event control'): native_evidence(self.toolkit, self.project)
         for label in ('authored-dialogue', 'dialogue-resume'):
             receipt['checks'] = [c for c in checks if c.get('check') != label]
             publish()

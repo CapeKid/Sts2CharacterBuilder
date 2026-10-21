@@ -35,7 +35,7 @@ The template restores this assembly's inline `ILocalizationProvider` text before
 
 Combat atlases can use [sprite data](SPRITES.md) without a handwritten factory. When enabled, the generated Character partial owns `CreateCustomVisuals` and the reserved `ModEntry.InitializeSprites` partial method. Use an extension factory only when generated sprites are disabled/empty; register bespoke triggers and other presentation explicitly; [room data](PRESENTATION.md) can author rest/shop visuals independently.
 
-Short character effects can use [audio data](AUDIO.md). Generated Audio.cs owns only configured select/transition/attack/cast/death getters and the reserved `ModEntry.InitializeAudio` partial method. Use extensions for other routes; do not replace a generated getter or add a second broad audio interceptor.
+Short character effects can use [audio data](AUDIO.md). Generated Audio.cs owns only configured select/transition/attack/cast/death getters, conditional hurt/victory event hooks and the reserved `ModEntry.InitializeAudio` partial method. Use extensions for other routes; do not replace a generated getter or add a second broad audio interceptor.
 
 Generated room presentation owns rest/shop body replacement only where configured, plus the reserved `ModEntry.InitializePresentation` partial method. Do not install a second room-body replacer for the same scenes. Native inputs, thought bubbles, healing, merchant transactions and saves remain native; human layout/device and co-op campaign evidence are still required.
 
