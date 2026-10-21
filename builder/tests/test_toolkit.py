@@ -255,7 +255,7 @@ class ToolkitTests(unittest.TestCase):
             self.edit('character.json', lambda c: c.update(hp=71))
             with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'update', 2345678901)
 
-    def test_publication_rejects_invalid_metadata_and_unpinned_archive_before_writes(self):
+    def test_publication_invalid_metadata_and_archive(self):
         archive, pin = self.publication_fixture()
         original = read_json(self.project / 'publishing.json')
         for change in (lambda d: d.update(preview='assets/cards/strike art.png'),
