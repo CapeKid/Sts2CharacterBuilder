@@ -1,0 +1,2446 @@
+{
+  "schema_version": 1,
+  "kind": "bounded-scripted-native-observations",
+  "character": "ArchetypeTrial",
+  "toolkit_commit": "db74e3d5897c4a510c411af5c5970c7344f55acf",
+  "game": {
+    "commit": "41cef1ea",
+    "version": "v0.111.0",
+    "date": "2026-08-13T17:39:18-07:00",
+    "branch": "v0.111.0",
+    "main_assembly_hash": 222455745
+  },
+  "target": "public-beta",
+  "status": "recorded",
+  "process_exit": 0,
+  "independent_copies": true,
+  "replayed": false,
+  "protocol": {
+    "plan": "builder/examples/steady-path/playtests.json",
+    "plan_canonical_json_sha256": "d278c9ffab1ef47c1a9a1a7cd0bb5b87dff01177c94c301d95ea52e4f1c9b534",
+    "cards_canonical_json_sha256": "0bd35e64d6d22fc678f20ed91cfb5320289d5c28ea5b2e4d828e11c9698acfcb",
+    "process_timeout_seconds": 600,
+    "maximum_turns": 22,
+    "maximum_plays": 89,
+    "bootstrap_retry_preserved_failed_partial": true
+  },
+  "check_count": 373,
+  "executed_check_count": 366,
+  "skipped_sentinel_count": 7,
+  "executed_checks": {
+    "native-io": 1,
+    "registration": 1,
+    "starting-kit": 1,
+    "starter-trigger": 1,
+    "card-portrait": 176,
+    "paid-card": 176,
+    "resource-turn": 1,
+    "reward-pool": 1,
+    "rewards-shop": 1,
+    "native-save-resume": 1,
+    "archetype-playtest": 6
+  },
+  "skipped_sentinels": {
+    "selection-controls": 1,
+    "presentation-controls": 1,
+    "audio-controls": 1,
+    "event-pools": 1,
+    "dialogue-controls": 1,
+    "sprite-integration": 1,
+    "item-pools": 1
+  },
+  "observations": [
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "PatientDefense",
+        "seed": "STEADY-PATIENTDEFENSE",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 4,
+        "max_plays": 24,
+        "deck": [
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Practice",
+            "upgraded": false
+          },
+          {
+            "card": "QuietPractice",
+            "upgraded": false
+          },
+          {
+            "card": "Unhurried",
+            "upgraded": false
+          },
+          {
+            "card": "SettledMind",
+            "upgraded": false
+          },
+          {
+            "card": "Fortify",
+            "upgraded": false
+          },
+          {
+            "card": "GuardedStep",
+            "upgraded": false
+          },
+          {
+            "card": "LongStride",
+            "upgraded": true
+          },
+          {
+            "card": "Breathe",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "SettledMind",
+          "Practice",
+          "QuietPractice",
+          "Fortify",
+          "Unhurried",
+          "Guard",
+          "Breathe",
+          "GuardedStep",
+          "LongStride",
+          "Strike"
+        ]
+      },
+      "outcome": "turn-cap",
+      "starting_deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Practice",
+          "upgraded": false
+        },
+        {
+          "card": "QuietPractice",
+          "upgraded": false
+        },
+        {
+          "card": "Unhurried",
+          "upgraded": false
+        },
+        {
+          "card": "SettledMind",
+          "upgraded": false
+        },
+        {
+          "card": "Fortify",
+          "upgraded": false
+        },
+        {
+          "card": "GuardedStep",
+          "upgraded": false
+        },
+        {
+          "card": "LongStride",
+          "upgraded": true
+        },
+        {
+          "card": "Breathe",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          46,
+          43
+        ]
+      },
+      "final": {
+        "player_hp": 59,
+        "block": 0,
+        "energy": 3,
+        "focus": 8,
+        "enemy_hp": [
+          46,
+          37
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "Fortify",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 12,
+            "energy": 1,
+            "focus": 3,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "Unhurried",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 19,
+            "energy": 0,
+            "focus": 4,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "SettledMind",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 2,
+            "focus": 5,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "Breathe",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 1,
+            "focus": 5,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "Practice",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 0,
+            "focus": 6,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Unhurried",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 62,
+            "block": 7,
+            "energy": 2,
+            "focus": 7,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Guard",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 62,
+            "block": 12,
+            "energy": 1,
+            "focus": 7,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Strike",
+          "upgraded": false,
+          "target_slot": 1,
+          "after": {
+            "player_hp": 62,
+            "block": 12,
+            "energy": 0,
+            "focus": 7,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "QuietPractice",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 59,
+            "block": 3,
+            "energy": 2,
+            "focus": 8,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "Guard",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 59,
+            "block": 8,
+            "energy": 1,
+            "focus": 8,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "Breathe",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 59,
+            "block": 8,
+            "energy": 0,
+            "focus": 8,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 2,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          },
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 4,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "plays": 3,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 4,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          },
+          "after": {
+            "player_hp": 62,
+            "block": 0,
+            "energy": 3,
+            "focus": 6,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "plays": 3,
+          "before": {
+            "player_hp": 62,
+            "block": 0,
+            "energy": 3,
+            "focus": 6,
+            "enemy_hp": [
+              46,
+              43
+            ]
+          },
+          "after": {
+            "player_hp": 59,
+            "block": 0,
+            "energy": 3,
+            "focus": 7,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "plays": 3,
+          "before": {
+            "player_hp": 59,
+            "block": 0,
+            "energy": 3,
+            "focus": 7,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          },
+          "after": {
+            "player_hp": 59,
+            "block": 0,
+            "energy": 3,
+            "focus": 8,
+            "enemy_hp": [
+              46,
+              37
+            ]
+          }
+        }
+      ],
+      "play_count": 11,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    },
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "TravelingLight",
+        "seed": "STEADY-TRAVELINGLIGHT",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 4,
+        "max_plays": 24,
+        "deck": [
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "QuickRead",
+            "upgraded": false
+          },
+          {
+            "card": "ScoutAhead",
+            "upgraded": false
+          },
+          {
+            "card": "Survey",
+            "upgraded": false
+          },
+          {
+            "card": "TrailRations",
+            "upgraded": false
+          },
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          },
+          {
+            "card": "TravelNotes",
+            "upgraded": false
+          },
+          {
+            "card": "Lunge",
+            "upgraded": false
+          },
+          {
+            "card": "ExpeditionPlan",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "TrailRations",
+          "ExpeditionPlan",
+          "TravelNotes",
+          "Survey",
+          "QuickRead",
+          "ScoutAhead",
+          "PassingTap",
+          "Lunge",
+          "Strike",
+          "Guard"
+        ]
+      },
+      "outcome": "turn-cap",
+      "starting_deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "QuickRead",
+          "upgraded": false
+        },
+        {
+          "card": "ScoutAhead",
+          "upgraded": false
+        },
+        {
+          "card": "Survey",
+          "upgraded": false
+        },
+        {
+          "card": "TrailRations",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "TravelNotes",
+          "upgraded": false
+        },
+        {
+          "card": "Lunge",
+          "upgraded": false
+        },
+        {
+          "card": "ExpeditionPlan",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          44,
+          45
+        ]
+      },
+      "final": {
+        "player_hp": 31,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          0,
+          45
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "TravelNotes",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              44,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "QuickRead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              39,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "ScoutAhead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              33,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "ExpeditionPlan",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              33,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "TrailRations",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              33,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              33,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "QuickRead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              28,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              28,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "PassingTap",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              25,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              25,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "QuickRead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              25,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "ScoutAhead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              19,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "PassingTap",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              16,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              16,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "ScoutAhead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              10,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              10,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "PassingTap",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              7,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "Survey",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              7,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "QuickRead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              2,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "ScoutAhead",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              0,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "PassingTap",
+          "upgraded": false,
+          "target_slot": 1,
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              0,
+              45
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 9,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              44,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              25,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "plays": 4,
+          "before": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              25,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              16,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "plays": 4,
+          "before": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              16,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              7,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "plays": 4,
+          "before": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              7,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              0,
+              45
+            ]
+          }
+        }
+      ],
+      "play_count": 21,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    },
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "ClearTheTrail",
+        "seed": "STEADY-CLEARTHETRAIL",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 4,
+        "max_plays": 24,
+        "deck": [
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Strike",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "TrailSweep",
+            "upgraded": false
+          },
+          {
+            "card": "ClearTheTrail",
+            "upgraded": false
+          },
+          {
+            "card": "ShelteringArc",
+            "upgraded": false
+          },
+          {
+            "card": "BracedSwing",
+            "upgraded": false
+          },
+          {
+            "card": "SafeShortcut",
+            "upgraded": false
+          },
+          {
+            "card": "WanderersCalm",
+            "upgraded": false
+          },
+          {
+            "card": "Breathe",
+            "upgraded": false
+          },
+          {
+            "card": "CircleCut",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "WanderersCalm",
+          "SafeShortcut",
+          "ClearTheTrail",
+          "TrailSweep",
+          "ShelteringArc",
+          "CircleCut",
+          "BracedSwing",
+          "Strike",
+          "Guard",
+          "Breathe"
+        ]
+      },
+      "outcome": "turn-cap",
+      "starting_deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "TrailSweep",
+          "upgraded": false
+        },
+        {
+          "card": "ClearTheTrail",
+          "upgraded": false
+        },
+        {
+          "card": "ShelteringArc",
+          "upgraded": false
+        },
+        {
+          "card": "BracedSwing",
+          "upgraded": false
+        },
+        {
+          "card": "SafeShortcut",
+          "upgraded": false
+        },
+        {
+          "card": "WanderersCalm",
+          "upgraded": false
+        },
+        {
+          "card": "Breathe",
+          "upgraded": false
+        },
+        {
+          "card": "CircleCut",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          45,
+          42
+        ]
+      },
+      "final": {
+        "player_hp": 51,
+        "block": 0,
+        "energy": 3,
+        "focus": 3,
+        "enemy_hp": [
+          7,
+          0
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "WanderersCalm",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 6,
+            "energy": 1,
+            "focus": 3,
+            "enemy_hp": [
+              45,
+              42
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "TrailSweep",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 6,
+            "energy": 0,
+            "focus": 3,
+            "enemy_hp": [
+              40,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "SafeShortcut",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 5,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              40,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "ClearTheTrail",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 5,
+            "energy": 2,
+            "focus": 3,
+            "enemy_hp": [
+              35,
+              27
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "card": "CircleCut",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 8,
+            "energy": 0,
+            "focus": 3,
+            "enemy_hp": [
+              27,
+              19
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "CircleCut",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 67,
+            "block": 3,
+            "energy": 1,
+            "focus": 3,
+            "enemy_hp": [
+              19,
+              11
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "card": "Strike",
+          "upgraded": false,
+          "target_slot": 1,
+          "after": {
+            "player_hp": 67,
+            "block": 3,
+            "energy": 0,
+            "focus": 3,
+            "enemy_hp": [
+              19,
+              5
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "TrailSweep",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 51,
+            "block": 0,
+            "energy": 2,
+            "focus": 3,
+            "enemy_hp": [
+              14,
+              5
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "card": "ShelteringArc",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 51,
+            "block": 8,
+            "energy": 0,
+            "focus": 3,
+            "enemy_hp": [
+              7,
+              0
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 2,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              45,
+              42
+            ]
+          },
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              40,
+              37
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "plays": 3,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              40,
+              37
+            ]
+          },
+          "after": {
+            "player_hp": 67,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              27,
+              19
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "plays": 2,
+          "before": {
+            "player_hp": 67,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              27,
+              19
+            ]
+          },
+          "after": {
+            "player_hp": 51,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              19,
+              5
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "plays": 2,
+          "before": {
+            "player_hp": 51,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              19,
+              5
+            ]
+          },
+          "after": {
+            "player_hp": 51,
+            "block": 0,
+            "energy": 3,
+            "focus": 3,
+            "enemy_hp": [
+              7,
+              0
+            ]
+          }
+        }
+      ],
+      "play_count": 9,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    },
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "PlayCapControl",
+        "seed": "STEADY-PLAYCAPCONTROL",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 1,
+        "max_plays": 1,
+        "deck": [
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          },
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          },
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          },
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          },
+          {
+            "card": "PassingTap",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "PassingTap"
+        ]
+      },
+      "outcome": "play-cap",
+      "starting_deck": [
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          44,
+          45
+        ]
+      },
+      "final": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          41,
+          45
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "PassingTap",
+          "upgraded": false,
+          "target_slot": 0,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              41,
+              45
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 1,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              44,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              41,
+              45
+            ]
+          }
+        }
+      ],
+      "play_count": 1,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    },
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "TurnCapControl",
+        "seed": "STEADY-TURNCAPCONTROL",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 1,
+        "max_plays": 8,
+        "deck": [
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "Guard"
+        ]
+      },
+      "outcome": "turn-cap",
+      "starting_deck": [
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          43,
+          46
+        ]
+      },
+      "final": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          43,
+          46
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "Guard",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 5,
+            "energy": 2,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              46
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "Guard",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 10,
+            "energy": 1,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              46
+            ]
+          }
+        },
+        {
+          "turn": 1,
+          "card": "Guard",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 15,
+            "energy": 0,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              46
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 3,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              46
+            ]
+          },
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              46
+            ]
+          }
+        }
+      ],
+      "play_count": 3,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    },
+    {
+      "check": "archetype-playtest",
+      "scenario": {
+        "id": "NoOffenseControl",
+        "seed": "STEADY-NOOFFENSECONTROL",
+        "encounter": "NibbitsNormal",
+        "ascension": 0,
+        "policy": "priority-lowest-hp",
+        "max_turns": 8,
+        "max_plays": 8,
+        "deck": [
+          {
+            "card": "TrailRations",
+            "upgraded": false
+          }
+        ],
+        "priority": [
+          "TrailRations"
+        ]
+      },
+      "outcome": "defeat",
+      "starting_deck": [
+        {
+          "card": "TrailRations",
+          "upgraded": false
+        }
+      ],
+      "start": {
+        "player_hp": 70,
+        "block": 0,
+        "energy": 3,
+        "focus": 1,
+        "enemy_hp": [
+          43,
+          45
+        ]
+      },
+      "final": {
+        "player_hp": 0,
+        "block": 0,
+        "energy": 3,
+        "focus": 0,
+        "enemy_hp": [
+          43,
+          45
+        ]
+      },
+      "plays": [
+        {
+          "turn": 1,
+          "card": "TrailRations",
+          "upgraded": false,
+          "target_slot": -1,
+          "after": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 4,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        }
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "plays": 1,
+          "before": {
+            "player_hp": 70,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 2,
+          "plays": 0,
+          "before": {
+            "player_hp": 65,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "plays": 0,
+          "before": {
+            "player_hp": 52,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 4,
+          "plays": 0,
+          "before": {
+            "player_hp": 31,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 24,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 5,
+          "plays": 0,
+          "before": {
+            "player_hp": 24,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 9,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        },
+        {
+          "turn": 6,
+          "plays": 0,
+          "before": {
+            "player_hp": 9,
+            "block": 0,
+            "energy": 3,
+            "focus": 1,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          },
+          "after": {
+            "player_hp": 0,
+            "block": 0,
+            "energy": 3,
+            "focus": 0,
+            "enemy_hp": [
+              43,
+              45
+            ]
+          }
+        }
+      ],
+      "play_count": 1,
+      "relics": [
+        "RELIC.ARCHETYPETRIAL-STARTER_RELIC"
+      ],
+      "native_resources_unmodified": true,
+      "campaign": false,
+      "human_balance": false
+    }
+  ],
+  "package": {
+    "sha256": "c6ab014a115a019e1a80763f6be8953271f6b353b3794549ddf54d10e48a4f85",
+    "payload_files": 7,
+    "runner_and_plan_excluded": true
+  },
+  "campaign": false,
+  "human_balance": false,
+  "release_ready": false,
+  "uploaded": false,
+  "gaps": [
+    "One encounter and Ascension 0 with a fixed greedy priority policy, not optimal play or campaign balance",
+    "No human fun/balance observations; no automatic tuning or win-rate estimate",
+    "Broader encounter/branch/device/co-op, human visual/audio and live Workshop delivery gates remain"
+  ],
+  "input_sha256": "349a6747443b53e646f5c32e37337348722e34492e249d3741b602db7242f432",
+  "source_sha256": "eda6026a46daf615bee04c126ba3bbf89b754e8e3fd9b39426bf4d9f50cea429",
+  "release_dll_sha256": "a76b6be21f7ed3588a595f264c7c02fd3dda1a1a2b4e050487fcd49dc5430eb8",
+  "test_dll_sha256": "ae87a9a572320b2be1c32eba1c20064e55777a163ea4ccc51e40d59ae6358426",
+  "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+  "probe_source_sha256": "49fa1772fa0fa355ef8ce4a86abc126cd236948bdc0e0fb1f274b6255c89fe47",
+  "victory_control_trial": {
+    "kind": "separate-positive-control",
+    "character": "ArchetypeVictoryTrial",
+    "toolkit_commit": "db74e3d5897c4a510c411af5c5970c7344f55acf",
+    "game": {
+      "commit": "41cef1ea",
+      "version": "v0.111.0",
+      "date": "2026-08-13T17:39:18-07:00",
+      "branch": "v0.111.0",
+      "main_assembly_hash": 222455745
+    },
+    "target": "public-beta",
+    "plan": {
+      "schema_version": 1,
+      "scenarios": [
+        {
+          "id": "VictoryControl",
+          "seed": "STEADY-VICTORY-CONTROL",
+          "encounter": "NibbitsNormal",
+          "ascension": 0,
+          "policy": "priority-lowest-hp",
+          "max_turns": 4,
+          "max_plays": 4,
+          "deck": [
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            }
+          ],
+          "priority": [
+            "OpenHorizon"
+          ]
+        },
+        {
+          "id": "AfterVictoryControl",
+          "seed": "STEADY-AFTER-VICTORY",
+          "encounter": "NibbitsNormal",
+          "ascension": 0,
+          "policy": "priority-lowest-hp",
+          "max_turns": 1,
+          "max_plays": 8,
+          "deck": [
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            }
+          ],
+          "priority": [
+            "Guard"
+          ]
+        }
+      ]
+    },
+    "plan_canonical_json_sha256": "050a5d74d7eff510c2e28b3a9cd5fcd7a9c6117c0558c1841ef7b486feb20ea4",
+    "card_ids": [
+      "Strike",
+      "Guard",
+      "Practice",
+      "Swing",
+      "Breathe",
+      "Composure",
+      "Lunge",
+      "Brace",
+      "OpenHorizon"
+    ],
+    "cards_canonical_json_sha256": "72bf403792a932ee17ede2ae5d22a4fa320ffb839278629fca551c4b65d0d13c",
+    "check_count": 53,
+    "observations": [
+      {
+        "check": "archetype-playtest",
+        "scenario": {
+          "id": "VictoryControl",
+          "seed": "STEADY-VICTORY-CONTROL",
+          "encounter": "NibbitsNormal",
+          "ascension": 0,
+          "policy": "priority-lowest-hp",
+          "max_turns": 4,
+          "max_plays": 4,
+          "deck": [
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            },
+            {
+              "card": "OpenHorizon",
+              "upgraded": true
+            }
+          ],
+          "priority": [
+            "OpenHorizon"
+          ]
+        },
+        "outcome": "victory",
+        "starting_deck": [
+          {
+            "card": "OpenHorizon",
+            "upgraded": true
+          },
+          {
+            "card": "OpenHorizon",
+            "upgraded": true
+          },
+          {
+            "card": "OpenHorizon",
+            "upgraded": true
+          },
+          {
+            "card": "OpenHorizon",
+            "upgraded": true
+          },
+          {
+            "card": "OpenHorizon",
+            "upgraded": true
+          }
+        ],
+        "start": {
+          "player_hp": 70,
+          "block": 0,
+          "energy": 3,
+          "focus": 1,
+          "enemy_hp": [
+            43,
+            42
+          ]
+        },
+        "final": {
+          "player_hp": 65,
+          "block": 0,
+          "energy": 0,
+          "focus": 0,
+          "enemy_hp": [
+            0,
+            0
+          ]
+        },
+        "plays": [
+          {
+            "turn": 1,
+            "card": "OpenHorizon",
+            "upgraded": true,
+            "target_slot": -1,
+            "after": {
+              "player_hp": 70,
+              "block": 0,
+              "energy": 0,
+              "focus": 1,
+              "enemy_hp": [
+                19,
+                18
+              ]
+            }
+          },
+          {
+            "turn": 2,
+            "card": "OpenHorizon",
+            "upgraded": true,
+            "target_slot": -1,
+            "after": {
+              "player_hp": 65,
+              "block": 0,
+              "energy": 0,
+              "focus": 0,
+              "enemy_hp": [
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "turns": [
+          {
+            "turn": 1,
+            "plays": 1,
+            "before": {
+              "player_hp": 70,
+              "block": 0,
+              "energy": 3,
+              "focus": 1,
+              "enemy_hp": [
+                43,
+                42
+              ]
+            },
+            "after": {
+              "player_hp": 65,
+              "block": 0,
+              "energy": 3,
+              "focus": 1,
+              "enemy_hp": [
+                19,
+                18
+              ]
+            }
+          },
+          {
+            "turn": 2,
+            "plays": 1,
+            "before": {
+              "player_hp": 65,
+              "block": 0,
+              "energy": 3,
+              "focus": 1,
+              "enemy_hp": [
+                19,
+                18
+              ]
+            },
+            "after": {
+              "player_hp": 65,
+              "block": 0,
+              "energy": 0,
+              "focus": 0,
+              "enemy_hp": [
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "play_count": 2,
+        "relics": [
+          "RELIC.ARCHETYPEVICTORYTRIAL-STARTER_RELIC"
+        ],
+        "native_resources_unmodified": true,
+        "campaign": false,
+        "human_balance": false
+      },
+      {
+        "check": "archetype-playtest",
+        "scenario": {
+          "id": "AfterVictoryControl",
+          "seed": "STEADY-AFTER-VICTORY",
+          "encounter": "NibbitsNormal",
+          "ascension": 0,
+          "policy": "priority-lowest-hp",
+          "max_turns": 1,
+          "max_plays": 8,
+          "deck": [
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            },
+            {
+              "card": "Guard",
+              "upgraded": false
+            }
+          ],
+          "priority": [
+            "Guard"
+          ]
+        },
+        "outcome": "turn-cap",
+        "starting_deck": [
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          },
+          {
+            "card": "Guard",
+            "upgraded": false
+          }
+        ],
+        "start": {
+          "player_hp": 70,
+          "block": 0,
+          "energy": 3,
+          "focus": 1,
+          "enemy_hp": [
+            46,
+            45
+          ]
+        },
+        "final": {
+          "player_hp": 70,
+          "block": 0,
+          "energy": 3,
+          "focus": 1,
+          "enemy_hp": [
+            46,
+            45
+          ]
+        },
+        "plays": [
+          {
+            "turn": 1,
+            "card": "Guard",
+            "upgraded": false,
+            "target_slot": -1,
+            "after": {
+              "player_hp": 70,
+              "block": 5,
+              "energy": 2,
+              "focus": 1,
+              "enemy_hp": [
+                46,
+                45
+              ]
+            }
+          },
+          {
+            "turn": 1,
+            "card": "Guard",
+            "upgraded": false,
+            "target_slot": -1,
+            "after": {
+              "player_hp": 70,
+              "block": 10,
+              "energy": 1,
+              "focus": 1,
+              "enemy_hp": [
+                46,
+                45
+              ]
+            }
+          },
+          {
+            "turn": 1,
+            "card": "Guard",
+            "upgraded": false,
+            "target_slot": -1,
+            "after": {
+              "player_hp": 70,
+              "block": 15,
+              "energy": 0,
+              "focus": 1,
+              "enemy_hp": [
+                46,
+                45
+              ]
+            }
+          }
+        ],
+        "turns": [
+          {
+            "turn": 1,
+            "plays": 3,
+            "before": {
+              "player_hp": 70,
+              "block": 0,
+              "energy": 3,
+              "focus": 1,
+              "enemy_hp": [
+                46,
+                45
+              ]
+            },
+            "after": {
+              "player_hp": 70,
+              "block": 0,
+              "energy": 3,
+              "focus": 1,
+              "enemy_hp": [
+                46,
+                45
+              ]
+            }
+          }
+        ],
+        "play_count": 3,
+        "relics": [
+          "RELIC.ARCHETYPEVICTORYTRIAL-STARTER_RELIC"
+        ],
+        "native_resources_unmodified": true,
+        "campaign": false,
+        "human_balance": false
+      }
+    ],
+    "input_sha256": "cabb33d25c18c04b94c0c7e16355a51d94679ff5f5e6dbb3576262454871a384",
+    "source_sha256": "20b83ff37cbda83b1d393813576baa0ad83e72e377bfaec638bbe73e29f5fb4b",
+    "release_dll_sha256": "69f613be45ccce9e6ee87bb480a621b2038ded56e7e63d235aab6f44882b18f8",
+    "test_dll_sha256": "367fb387506ce799b9b74a7a21181ce8a997edbdf8f6140ea8f363ff5a75ef01",
+    "probe_source_sha256": "9b3af3a6d01728891242594ccd33a11bb9d1f284f196c59a6f26e0bd45077c95",
+    "process_exit": 0,
+    "replayed": false,
+    "campaign": false,
+    "human_balance": false,
+    "purpose": "Exercise victory and a following fresh-run reset with fixed upgraded AoE cards; not a balanced deck or seed search"
+  }
+}

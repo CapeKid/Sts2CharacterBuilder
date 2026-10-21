@@ -25,4 +25,6 @@ To try the example, initialize a **new** character project using the [normal wor
 
 The sample uses the shared original placeholder card art. It makes no human art, campaign, fun, physical-device or co-op claim. Balance warnings are intentionally retained for review: early Focus can trivialize weak enemy turns, large Block and Focus packages may be excessive, draw chains may compress decisions, and one-shot Energy bursts may dominate early drafting. Defensive stalling and Rare Power redundancy need human playtests, with predeclared decks/seeds/encounters and capped attempts. Do not automatically buff a sample because an automated run loses.
 
+The optional [playtests.json](playtests.json) adds three proposed archetype decks and three controls, predeclared at a combined 22-turn/89-play cap. Copy it to the project's `design/playtests.json` only when these [bounded scripted observations](../../PLAYTESTS.md) are wanted. Its fixed priorities are deliberately simple and are not optimal-play or campaign benchmarks.
+
 See [the sanitized full-pool native receipt](../../../docs/full-pool-native-fixture.json) for the tested revision/build, coverage and remaining gates. The owned game, private catalogs, logs, profiles and fixture project are not shipped with this example.

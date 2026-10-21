@@ -16,6 +16,7 @@ The initial eight-card design is a prototype, not an automatically completed nat
 
 - [Full card-pool planning](builder/CARD-POOLS.md)
 - [Original 85-reward-card sample](builder/examples/steady-path/README.md)
+- [Bounded native archetype observations](builder/PLAYTESTS.md)
 - [Design and extraction plan](docs/character-builder-design.md)
 - [Implementation issue](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1)
 - [Spire Legacy reference documentation](SPIRE_LEGACY_REFERENCE.md)

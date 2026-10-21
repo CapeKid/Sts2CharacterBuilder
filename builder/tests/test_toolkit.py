@@ -1465,6 +1465,36 @@ class PlaytestEvidenceTests(unittest.TestCase):
 
 
 class RecordedExampleTests(unittest.TestCase):
+    def test_archetype_receipt_matches_predeclared_plan_and_native_resources(self):
+        # Historical receipt integrity, not a new game run or human balance judgment.
+        plan = read_json(REPO / 'builder/examples/steady-path/playtests.json')
+        cards = read_json(REPO / 'builder/examples/steady-path/cards.json')
+        receipt = read_json(REPO / 'docs/archetype-native-fixture.json')
+        self.assertEqual(receipt['protocol']['plan_canonical_json_sha256'], digest(encoded(plan)))
+        self.assertEqual(receipt['protocol']['cards_canonical_json_sha256'], digest(encoded(cards)))
+        validate_playtest_evidence(plan['scenarios'], receipt['observations'])
+        for trial in receipt['observations']:
+            self.assertEqual(trial['start']['player_hp'], 70)
+            self.assertEqual(trial['start']['energy'], 3)
+            self.assertEqual(trial['start']['focus'], 1)
+            self.assertTrue(all(0 < hp < 10000 for hp in trial['start']['enemy_hp']))
+        by_id = {c['scenario']['id']: c for c in receipt['observations']}
+        self.assertEqual(by_id['PlayCapControl']['outcome'], 'play-cap')
+        self.assertEqual(by_id['PlayCapControl']['play_count'], 1)
+        self.assertEqual(by_id['TurnCapControl']['outcome'], 'turn-cap')
+        self.assertEqual(len(by_id['TurnCapControl']['turns']), 1)
+        self.assertEqual(by_id['NoOffenseControl']['outcome'], 'defeat')
+        self.assertFalse(receipt['campaign'] or receipt['human_balance'] or receipt['release_ready'])
+        control = receipt['victory_control_trial']
+        self.assertEqual(control['plan_canonical_json_sha256'], digest(encoded(control['plan'])))
+        by_card = {c['id']: c for c in cards}
+        self.assertEqual(control['cards_canonical_json_sha256'], digest(encoded([by_card[key] for key in control['card_ids']])))
+        validate_playtest_evidence(control['plan']['scenarios'], control['observations'])
+        self.assertEqual(control['observations'][0]['outcome'], 'victory')
+        self.assertEqual(control['observations'][1]['start']['player_hp'], 70)
+        self.assertEqual(control['observations'][1]['start']['energy'], 3)
+        self.assertFalse(control['campaign'] or control['human_balance'] or control['replayed'])
+
     def test_full_pool_receipt_matches_original_design_and_all_outcomes(self):
         # Check the published historical receipt's integrity; this never executes native gameplay.
         cards = read_json(REPO / 'builder/examples/steady-path/cards.json')

@@ -39,6 +39,7 @@ The native suite checks:
 - Actual native reward-card IDs, costs, dynamic values and rarity/type cells for each built-in character. These remain private evidence and can drive `balance --comparator`.
 - Exact generated reward-pool membership, excluding basics, and declared card rarity/type/target identity. The generic fixture expects the authored pool; alternate extension-owned pools require separate reconciliation/fixtures.
 - Base and upgraded reward representatives from every authored rarity/type cell are added to the actual deck before native save/resume. The fixture compares the complete resulting deck identities and upgrade levels after reload, in addition to each generated card's individual serialization check.
+- Optional [bounded archetype trials](PLAYTESTS.md) run after the correctness suite, in fresh runs with predeclared decks/upgrades/seeds and strict turn/play caps. They retain normal native HP/Energy/draws/enemies and record decisions/resources plus victory/defeat/cap outcomes. These are scripted observations, not campaign or human balance passes.
 
 `test-native` emits progress and writes `evidence.json` under the lab. A success marker in `.builder/native-evidence.json` binds that file's hash. `test`, `balance --comparator` and package reports accept only complete current coverage with matching input/source/toolkit/release-DLL identity. Truncated, stale or failing evidence is not a native pass.
 
