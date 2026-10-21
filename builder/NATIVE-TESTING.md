@@ -37,6 +37,8 @@ The native suite checks:
 - Native reward and merchant creation, including owner/pool membership.
 - A permanent deck upgrade, full native run save/read/reconstruction/resume, and deck/relic/character identity plus potion-slot preservation.
 - Actual native reward-card IDs, costs, dynamic values and rarity/type cells for each built-in character. These remain private evidence and can drive `balance --comparator`.
+- Exact generated reward-pool membership, excluding basics, and declared card rarity/type/target identity. The generic fixture expects the authored pool; alternate extension-owned pools require separate reconciliation/fixtures.
+- Base and upgraded reward representatives from every authored rarity/type cell are added to the actual deck before native save/resume. The fixture compares the complete resulting deck identities and upgrade levels after reload, in addition to each generated card's individual serialization check.
 
 `test-native` emits progress and writes `evidence.json` under the lab. A success marker in `.builder/native-evidence.json` binds that file's hash. `test`, `balance --comparator` and package reports accept only complete current coverage with matching input/source/toolkit/release-DLL identity. Truncated, stale or failing evidence is not a native pass.
 

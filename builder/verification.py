@@ -104,6 +104,16 @@ def native_evidence(toolkit, root):
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
         raise BuilderError('Native evidence does not cover the required suite and every generated upgrade')
+    reward = [c for c in cards if c['rarity'] != 'Basic']
+    pool = [c for c in receipt['checks'] if c.get('check') == 'reward-pool']
+    if (len(pool) != 1 or pool[0].get('custom') is not config['features']['cards']
+            or sorted(pool[0].get('cards', [])) != sorted(c['id'] for c in reward)
+            or (config['features']['cards'] and pool[0].get('count') != len(reward))):
+        raise BuilderError('Native evidence does not cover the exact authored reward pool')
+    saved = [c for c in receipt['checks'] if c.get('check') == 'native-save-resume']
+    cells = {c['rarity'] + '/' + c['type'] for c in reward}
+    if len(saved) != 1 or set(saved[0].get('rewardCells', [])) != cells or len(saved[0].get('rewardCells', [])) != len(cells):
+        raise BuilderError('Native evidence does not cover saved base/upgraded reward cells')
     portraits = [(check.get('card'), check.get('upgraded'), check.get('asset')) for check in receipt.get('checks', [])
                  if check.get('check') == 'card-portrait']
     expected_portraits = {(card['id'], upgraded, card.get('portrait', 'assets/card.svg'))

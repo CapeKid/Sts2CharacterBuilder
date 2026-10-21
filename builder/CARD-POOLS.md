@@ -2,6 +2,8 @@
 
 The bootstrap is eight cards, including three basics. Full-pool completion is an authoring task: preserve supplied ideas, choose coherent build themes and add distinct supported cards. Repeating numeric cards until a counter is satisfied does not complete a character.
 
+[Steady Path](examples/steady-path/README.md) is an optional original 85-reward-card example with explicit themes, tradeoffs and known balance risks. It preserves the bootstrap ideas and demonstrates the numeric generator's scope; it is not automatic content for an unrelated user concept.
+
 First generate a valid prototype and collect a passing [native baseline](NATIVE-TESTING.md) on the selected branch. Capture one observed built-in character's reward targets before editing:
 
 ```powershell
