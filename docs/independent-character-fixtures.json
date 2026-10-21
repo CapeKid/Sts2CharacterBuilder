@@ -1,0 +1,743 @@
+{
+  "schema_version": 1,
+  "kind": "independent-character-fixtures",
+  "trials": [
+    {
+      "character": "PublicationTrial",
+      "toolkit_commit": "40fed047eead9d7819dcc56346f2bd1183286417",
+      "features": {
+        "mechanic": true,
+        "cards": true,
+        "art": true,
+        "items": true,
+        "events": false,
+        "dialogue": false,
+        "sprites": false,
+        "presentation": true,
+        "audio": false
+      },
+      "kind": "isolated-windows-headless-native",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "status": "pass",
+      "process_exit": 0,
+      "independent_copies": true,
+      "check_count": 46,
+      "executed_check_count": 39,
+      "skipped_sentinel_count": 7,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "dialogue-controls": 1,
+        "sprite-integration": 1,
+        "item-pools": 1
+      },
+      "hashes": {
+        "input_sha256": "7e8103a57974a169a59266bd246a8c513b58c8b3dbdaa4398f6327ca7c861a8e",
+        "source_sha256": "533cb79c8c511ebb05d6f2f37c708e071eba1ea10eb37c2eb50671a78925cdcd",
+        "release_dll_sha256": "2047107b8feefd256991d76bf69b4a63a409c4bd0e99dc29f3b1c527d4d0d5be",
+        "test_dll_sha256": "e254fe26a623d40d82744744d5d0747d64217a5a4562c9c7eb07d80fdf44c7a0",
+        "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+        "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+        "probe_source_sha256": "4a03465f21256047060aeefad207c3d65dd24490c61647d6a6831e4820da9472"
+      },
+      "payload_files": 8,
+      "probe_excluded": true,
+      "uploaded": false,
+      "release_ready": false,
+      "checks": [
+        {
+          "check": "native-io",
+          "atomicProgress": true,
+          "windowsReaderLock": true,
+          "finalEvidenceStrict": true
+        },
+        {
+          "check": "registration",
+          "character": "CHARACTER.PUBLICATIONTRIAL-CHARACTER",
+          "hp": 70
+        },
+        {
+          "check": "selection-controls",
+          "skipped": "No authored selection art; native imagery retained."
+        },
+        {
+          "check": "starting-kit",
+          "deck": 10,
+          "relics": [
+            "RELIC.PUBLICATIONTRIAL-STARTER_RELIC"
+          ]
+        },
+        {
+          "check": "starter-trigger",
+          "focus": 1
+        },
+        {
+          "check": "presentation-controls",
+          "skipped": "No authored room presentation; native imagery retained."
+        },
+        {
+          "check": "audio-controls",
+          "skipped": "No authored audio; native character sounds retained."
+        },
+        {
+          "check": "event-pools",
+          "skipped": true,
+          "reason": "No authored events"
+        },
+        {
+          "check": "dialogue-controls",
+          "skipped": true,
+          "reason": "No authored dialogue"
+        },
+        {
+          "check": "sprite-integration",
+          "skipped": true,
+          "reason": "No authored combat sprites"
+        },
+        {
+          "check": "item-pools",
+          "skipped": true,
+          "reason": "No authored items"
+        },
+        {
+          "check": "card-portrait",
+          "card": "Strike",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Strike",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 6,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Strike",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Strike",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 9,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Guard",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Guard",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 5,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Guard",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Guard",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 8,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Practice",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Practice",
+          "upgraded": false,
+          "pile": "Exhaust",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 0,
+          "focus": 1,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Practice",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Practice",
+          "upgraded": true,
+          "pile": "Exhaust",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 0,
+          "focus": 2,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Swing",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Swing",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 9,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Swing",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Swing",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 12,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Breathe",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Breathe",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 2,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Breathe",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Breathe",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 3,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Composure",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Composure",
+          "upgraded": false,
+          "pile": "None",
+          "energy": 2,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 0,
+          "focus": 2,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Composure",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Composure",
+          "upgraded": true,
+          "pile": "None",
+          "energy": 2,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 0,
+          "draw": 0,
+          "focus": 3,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Lunge",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Lunge",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 2,
+          "energyGain": 0,
+          "damage": 14,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Lunge",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Lunge",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 2,
+          "energyGain": 0,
+          "damage": 19,
+          "block": 0,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Brace",
+          "upgraded": false,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Brace",
+          "upgraded": false,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 8,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "card-portrait",
+          "card": "Brace",
+          "upgraded": true,
+          "asset": "assets/card.svg",
+          "width": 500,
+          "height": 380,
+          "sha256": "6d6cba86e2f4a95254e997b1a5d79b0d24f05907e8ac58074e3b930b44986de8",
+          "cached": true
+        },
+        {
+          "check": "paid-card",
+          "card": "Brace",
+          "upgraded": true,
+          "pile": "Discard",
+          "energy": 1,
+          "energyGain": 0,
+          "damage": 0,
+          "block": 11,
+          "draw": 0,
+          "focus": 0,
+          "cardSaveRoundTrip": true,
+          "textVerified": true
+        },
+        {
+          "check": "resource-turn",
+          "hookBlock": 3,
+          "nativeTurnAdvanced": true,
+          "preserved": true
+        },
+        {
+          "check": "rewards-shop",
+          "rewards": [
+            "CARD.PUBLICATIONTRIAL-CARD_SWING",
+            "CARD.PUBLICATIONTRIAL-CARD_BRACE",
+            "CARD.PUBLICATIONTRIAL-CARD_LUNGE"
+          ],
+          "shop": [
+            "CARD.PUBLICATIONTRIAL-CARD_SWING",
+            "CARD.PUBLICATIONTRIAL-CARD_LUNGE",
+            "CARD.PUBLICATIONTRIAL-CARD_BRACE",
+            "CARD.PUBLICATIONTRIAL-CARD_BREATHE",
+            "CARD.PUBLICATIONTRIAL-CARD_COMPOSURE"
+          ]
+        },
+        {
+          "check": "native-save-resume",
+          "character": "CHARACTER.PUBLICATIONTRIAL-CHARACTER",
+          "deck": [
+            "CARD.PUBLICATIONTRIAL-CARD_STRIKE:1",
+            "CARD.PUBLICATIONTRIAL-CARD_STRIKE:0",
+            "CARD.PUBLICATIONTRIAL-CARD_STRIKE:0",
+            "CARD.PUBLICATIONTRIAL-CARD_STRIKE:0",
+            "CARD.PUBLICATIONTRIAL-CARD_STRIKE:0",
+            "CARD.PUBLICATIONTRIAL-CARD_GUARD:0",
+            "CARD.PUBLICATIONTRIAL-CARD_GUARD:0",
+            "CARD.PUBLICATIONTRIAL-CARD_GUARD:0",
+            "CARD.PUBLICATIONTRIAL-CARD_GUARD:0",
+            "CARD.PUBLICATIONTRIAL-CARD_PRACTICE:0"
+          ],
+          "relics": [
+            "RELIC.PUBLICATIONTRIAL-STARTER_RELIC"
+          ],
+          "potions": [
+            null,
+            null,
+            null
+          ],
+          "nextCombatFocus": 1
+        }
+      ],
+      "gaps": [
+        "Visual room/selection review, physical devices and online co-op unperformed",
+        "Bespoke extension effects are outside the numeric fixtures",
+        "Campaign balance and Workshop delivery unperformed",
+        "Synthetic publication dependency ID and two-pixel preview; listing/art review unperformed"
+      ],
+      "fresh_recursive_clone": true,
+      "toolkit_remote": "https://github.com/CapeKid/Sts2CharacterBuilder.git",
+      "publication_preflight": "match",
+      "uploader": {
+        "repository": "https://github.com/megacrit/sts2-mod-uploader",
+        "tag": "v0.2.0",
+        "commit": "4c4db1262cdce6a1c4550a494f2e1088dbeda346",
+        "archive": "ModUploader-win-x64.zip",
+        "sha256": "2b55c19cc5932235ca9dbd663ca07d04e5d5a0018402303199f9b4ec8ca06578",
+        "executable": "ModUploader.exe"
+      }
+    },
+    {
+      "character": "NativeFallbackTrial",
+      "toolkit_commit": "2effefc210721ab8cfa60f31c94f3216a96b9e2a",
+      "features": {
+        "mechanic": false,
+        "cards": false,
+        "art": false,
+        "items": false,
+        "events": false,
+        "dialogue": false,
+        "sprites": false,
+        "presentation": false,
+        "audio": false
+      },
+      "kind": "isolated-windows-headless-native",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "status": "pass",
+      "process_exit": 0,
+      "independent_copies": true,
+      "check_count": 14,
+      "executed_check_count": 6,
+      "skipped_sentinel_count": 8,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "dialogue-controls": 1,
+        "sprite-integration": 1,
+        "item-pools": 1,
+        "resource-turn": 1
+      },
+      "hashes": {
+        "input_sha256": "c7473a146e7ed1cb8b42b51a9dd68631a210d242fbb2fa07ee4bed315b0f3990",
+        "source_sha256": "33c1792129a00ca4c9f28c27c582a8768bea0c93c6a2f355dd7ce822b0d41953",
+        "release_dll_sha256": "3a2e8e7c9b9cfd4e7bd67ee29b79537a13bb8757adf2516f69991b7bbda640b5",
+        "test_dll_sha256": "9c228b5465b417ba33a78d5e57cb7ed44f2ee8ee3951443a890b5a651ccf8234",
+        "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+        "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+        "probe_source_sha256": "6a69165a110b86f83e204433220ed414966c4aff49ceb9a10f90b90f5dab6171"
+      },
+      "payload_files": 7,
+      "probe_excluded": true,
+      "uploaded": false,
+      "release_ready": false,
+      "checks": [
+        {
+          "check": "native-io",
+          "atomicProgress": true,
+          "windowsReaderLock": true,
+          "finalEvidenceStrict": true
+        },
+        {
+          "check": "registration",
+          "character": "CHARACTER.NATIVEFALLBACKTRIAL-CHARACTER",
+          "hp": 70
+        },
+        {
+          "check": "selection-controls",
+          "skipped": "No authored selection art; native imagery retained."
+        },
+        {
+          "check": "starting-kit",
+          "deck": 10,
+          "relics": [
+            "RELIC.BURNING_BLOOD"
+          ]
+        },
+        {
+          "check": "starter-trigger",
+          "focus": 0
+        },
+        {
+          "check": "presentation-controls",
+          "skipped": "No authored room presentation; native imagery retained."
+        },
+        {
+          "check": "audio-controls",
+          "skipped": "No authored audio; native character sounds retained."
+        },
+        {
+          "check": "event-pools",
+          "skipped": true,
+          "reason": "No authored events"
+        },
+        {
+          "check": "dialogue-controls",
+          "skipped": true,
+          "reason": "No authored dialogue"
+        },
+        {
+          "check": "sprite-integration",
+          "skipped": true,
+          "reason": "No authored combat sprites"
+        },
+        {
+          "check": "item-pools",
+          "skipped": true,
+          "reason": "No authored items"
+        },
+        {
+          "check": "resource-turn",
+          "skipped": true,
+          "reason": "Generated resource disabled"
+        },
+        {
+          "check": "rewards-shop",
+          "rewards": [
+            "CARD.ARMAMENTS",
+            "CARD.THUNDERCLAP",
+            "CARD.TAUNT"
+          ],
+          "shop": [
+            "CARD.DISMANTLE",
+            "CARD.PILLAGE",
+            "CARD.TAUNT",
+            "CARD.SHRUG_IT_OFF",
+            "CARD.FEEL_NO_PAIN"
+          ]
+        },
+        {
+          "check": "native-save-resume",
+          "character": "CHARACTER.NATIVEFALLBACKTRIAL-CHARACTER",
+          "deck": [
+            "CARD.STRIKE_IRONCLAD:1",
+            "CARD.STRIKE_IRONCLAD:0",
+            "CARD.STRIKE_IRONCLAD:0",
+            "CARD.STRIKE_IRONCLAD:0",
+            "CARD.STRIKE_IRONCLAD:0",
+            "CARD.DEFEND_IRONCLAD:0",
+            "CARD.DEFEND_IRONCLAD:0",
+            "CARD.DEFEND_IRONCLAD:0",
+            "CARD.DEFEND_IRONCLAD:0",
+            "CARD.BASH:0"
+          ],
+          "relics": [
+            "RELIC.BURNING_BLOOD"
+          ],
+          "potions": [
+            null,
+            null,
+            null
+          ],
+          "nextCombatFocus": 0
+        }
+      ],
+      "gaps": [
+        "Visual room/selection review, physical devices and online co-op unperformed",
+        "Bespoke extension effects are outside the numeric fixtures",
+        "Campaign balance and Workshop delivery unperformed"
+      ],
+      "fresh_project": true,
+      "all_custom_features_disabled": true,
+      "completed_bootstrap_recovered": true
+    }
+  ],
+  "note": "Local numeric native evidence on the reported owned build. Skip sentinels are counted separately from executed checks. Public summary excludes personal paths, accounts, tokens, logs and full native comparator datasets. Physical/human/co-op/balance/live-delivery gates remain open."
+}
