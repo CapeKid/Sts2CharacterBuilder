@@ -201,12 +201,13 @@ class ToolkitTests(unittest.TestCase):
         atomic(self.project / 'mod_id.txt', b'9999999999')
         atomic(self.project / 'workshop.json', b'{"title":"Unrelated legacy workspace"}')
         with patch('builder.publishing.uploader_release', return_value=pin):
-            prepared = prepare_publish(self.toolkit, self.project, 'first-private', archive)
+            alias = self.project / '..' / self.project.name
+            prepared = prepare_publish(self.toolkit, alias, 'first-private', archive)
             workspace = Path(prepared['workspace'])
             self.assertFalse((workspace / 'mod_id.txt').exists())
             self.assertEqual(read_json(workspace / 'workshop.json')['dependencies'], [1234567890])
             self.assertEqual(read_json(workspace / 'workshop.json')['title'], 'Test Hero')
-            self.assertEqual(check_publish(self.toolkit, self.project, 'first-private')['status'], 'match')
+            self.assertEqual(check_publish(self.toolkit, alias, 'first-private')['status'], 'match')
             self.assertFalse(prepared['uploaded'])
             self.assertFalse(prepared['release_ready'])
             self.assertEqual(prepared['visibility'], 'private')

@@ -76,6 +76,7 @@ def official_archive(toolkit, archive):
 
 
 def prepare_publish(toolkit, root, name, archive, existing_item=None):
+    root = Path(root).resolve()
     destination = workspace_path(root, name)
     if destination.exists():
         raise BuilderError('Publication workspace already exists; preserve it and choose a new workspace name')
@@ -125,6 +126,7 @@ def prepare_publish(toolkit, root, name, archive, existing_item=None):
 
 
 def check_publish(toolkit, root, name, existing_item=None):
+    root = Path(root).resolve()
     directory = workspace_path(root, name)
     _, workshop, image = publication(toolkit, root, existing_item)
     receipt = read_json(contained(directory, 'publication-preparation.json'))
