@@ -21,6 +21,8 @@ The initial eight-card design is a prototype, not an automatically completed nat
 
 The scope is conventional standalone characters, guided and expedited authoring, modular skills and verification tools. Cross-run progression, heirs, inheritance, manor upgrades and crowns are permanently excluded.
 
+`prepare-publish` and `check-publish` prepare an offline private workspace using a hash-pinned Mega Crit uploader archive and exact staged payload. They preserve explicit update identity and never upload; see [publishing](builder/PUBLISHING.md). Live Workshop creation/update and authenticated download verification remain completion gates.
+
 This repository preserves the complete history of the character-builder branch through `60322dafc054f97d2c5c534dce3552f90fad4757`. It is an independent development fork because GitHub does not allow one account to own both a parent repository and its fork. Builder work belongs here; the Spire Legacy repository remains focused on the mod.
 
 Inherited build and publishing scripts are reference material and still contain Spire Legacy-specific identifiers. Do not use them to publish this toolkit or another character to the existing mod's Workshop item. The extraction plan explains the required project configuration and identity separation.

@@ -8,12 +8,14 @@ import subprocess
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 import zlib
 
 from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
+from builder.publishing import check_publish, prepare_publish, publication
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -178,6 +180,123 @@ class ToolkitTests(unittest.TestCase):
             atomic(self.project / path, data)
             self.edit('assets/manifest.json', lambda rows: rows.append(dict(path=path, sha256=digest(data), method='original', license='MIT', credit='Original item test art')))
         atomic(self.project / 'design/items.json', encoded(items_with_art()))
+
+    def publication_fixture(self):
+        self.add_portrait()
+        atomic(self.project / 'publishing.json', encoded(dict(schema_version=1, description='Private fixture, not a release.',
+            preview='assets/cards/Strike art.png', baselib_workshop_id=1234567890, tags=['Characters'])))
+        generate(self.toolkit, self.project)
+        self.mock_build()
+        archive = self.project.parent / 'ModUploader-win-x64.zip'
+        with zipfile.ZipFile(archive, 'w') as package:
+            for name, data in {'ModUploader.exe': b'Offline test double; never executed',
+                    'template/workshop.json': b'{"visibility":"private"}', 'template/README.md': b'Fixture template'}.items():
+                package.writestr(name, data)
+        pin = read_json(self.toolkit / 'builder/uploader-release.json')
+        pin['archives'] = {archive.name: digest(archive.read_bytes())}
+        return archive, pin
+
+    def test_publication_new_workspace_and_exact_private_payload(self):
+        archive, pin = self.publication_fixture()
+        atomic(self.project / 'mod_id.txt', b'9999999999')
+        atomic(self.project / 'workshop.json', b'{"title":"Unrelated legacy workspace"}')
+        with patch('builder.publishing.uploader_release', return_value=pin):
+            alias = self.project / '..' / self.project.name
+            prepared = prepare_publish(self.toolkit, alias, 'first-private', archive)
+            workspace = Path(prepared['workspace'])
+            self.assertFalse((workspace / 'mod_id.txt').exists())
+            self.assertEqual(read_json(workspace / 'workshop.json')['dependencies'], [1234567890])
+            self.assertEqual(read_json(workspace / 'workshop.json')['title'], 'Test Hero')
+            self.assertEqual(check_publish(self.toolkit, alias, 'first-private')['status'], 'match')
+            self.assertFalse(prepared['uploaded'])
+            self.assertFalse(prepared['release_ready'])
+            self.assertEqual(prepared['visibility'], 'private')
+            self.assertEqual(resume(self.toolkit, self.project)['steps']['publish']['status'], 'ready')
+            original = (workspace / 'image.png').read_bytes()
+            with self.assertRaisesRegex(BuilderError, 'already exists'):
+                prepare_publish(self.toolkit, self.project, 'first-private', archive)
+            self.assertEqual((workspace / 'image.png').read_bytes(), original)
+            with self.assertRaises(BuilderError): prepare_publish(self.toolkit, self.project, '../escape', archive)
+            for name in ('extra.dll', 'TestHero/package-inspection.json'):
+                path = workspace / 'content' / name
+                before = path.read_bytes() if path.exists() else None
+                atomic(path, b'changed')
+                with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'first-private')
+                if before is None: path.unlink()
+                else: atomic(path, before)
+            self.edit('publishing.json', lambda d: d.update(description='Revised publication text'))
+            self.assertEqual(resume(self.toolkit, self.project)['steps']['publish']['status'], 'pending')
+            with self.assertRaisesRegex(BuilderError, 'stale'): check_publish(self.toolkit, self.project, 'first-private')
+
+    def test_publication_update_identity_tool_tampering_and_stale_build(self):
+        archive, pin = self.publication_fixture()
+        self.edit('publishing.json', lambda d: d.update(existing_item_id=2345678901))
+        with patch('builder.publishing.uploader_release', return_value=pin):
+            for selected in (None, 3456789012):
+                with self.assertRaisesRegex(BuilderError, 'matching publishing.json'):
+                    prepare_publish(self.toolkit, self.project, 'update', archive, selected)
+            prepared = prepare_publish(self.toolkit, self.project, 'update', archive, 2345678901)
+            workspace = Path(prepared['workspace'])
+            self.assertEqual((workspace / 'mod_id.txt').read_text(), '2345678901\n')
+            check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(workspace / 'mod_id.txt', b'3456789012\n')
+            with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(workspace / 'mod_id.txt', b'2345678901\n')
+            tool = workspace / 'tools/uploader/ModUploader.exe'
+            original = tool.read_bytes(); atomic(tool, b'changed binary')
+            # A rewritten receipt is not a substitute for the official archive.
+            receipt_path = workspace / 'publication-preparation.json'
+            receipt = read_json(receipt_path)
+            receipt['files']['tools/uploader/ModUploader.exe'] = digest(tool.read_bytes())
+            atomic(receipt_path, encoded(receipt))
+            with self.assertRaisesRegex(BuilderError, 'uploader pin differs'):
+                check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(tool, original)
+            self.edit('character.json', lambda c: c.update(hp=71))
+            with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'update', 2345678901)
+
+    def test_publication_invalid_metadata_and_archive(self):
+        archive, pin = self.publication_fixture()
+        original = read_json(self.project / 'publishing.json')
+        for change in (lambda d: d.update(preview='assets/cards/strike art.png'),
+                       lambda d: d.update(preview='assets/../preview.png'),
+                       lambda d: d.update(baselib_workshop_id=True),
+                       lambda d: d.update(dependencies=[1234567890]),
+                       lambda d: d.update(tags=['Characters', 'Characters']),
+                       lambda d: d.update(content_descriptors=['unknown']),
+                       lambda d: d.update(visibility='public')):
+            data = copy.deepcopy(original); change(data)
+            atomic(self.project / 'publishing.json', encoded(data))
+            with self.assertRaises(BuilderError): publication(self.toolkit, self.project)
+        atomic(self.project / 'publishing.json', encoded(original))
+        with self.assertRaisesRegex(BuilderError, 'not a pinned official release'):
+            prepare_publish(self.toolkit, self.project, 'bad-archive', archive)
+        self.assertFalse((self.project / 'private/workshop/bad-archive').exists())
+        image_path = self.project / original['preview']
+        data = image_path.read_bytes()
+        payload = b'x' * 1_000_000
+        chunk = b'tEXt' + payload
+        data = data[:-12] + struct.pack('>I', len(payload)) + chunk + struct.pack('>I', zlib.crc32(chunk)) + data[-12:]
+        atomic(image_path, data)
+        self.edit('assets/manifest.json', lambda rows: [r.update(sha256=digest(data)) for r in rows if r['path'] == original['preview']])
+        with self.assertRaisesRegex(BuilderError, 'smaller than 1 MB'): publication(self.toolkit, self.project)
+
+    @unittest.skipUnless(os.environ.get('BUILDER_TEST_UPLOADER_ARCHIVE'), 'Official uploader archive integration is opt-in')
+    def test_official_uploader_archive_cli_and_offline_new_command(self):
+        self.publication_fixture()
+        archive = Path(os.environ['BUILDER_TEST_UPLOADER_ARCHIVE']).resolve()
+        cli = self.toolkit / 'scripts/character-builder.py'
+        import sys
+        import json
+        prepared = json.loads(run([sys.executable, cli, '--project', self.project, 'prepare-publish', '--workspace', 'official', '--uploader-archive', archive]))
+        checked = json.loads(run([sys.executable, cli, '--project', self.project, 'check-publish', '--workspace', 'official']))
+        self.assertEqual(checked['status'], 'match')
+        self.assertFalse(checked['uploaded'])
+        # The official 'new' command is offline. Never invoke upload or remove.
+        upstream = self.project.parent / 'Official empty workspace'
+        run([prepared['upload_argv'][0], 'new', '-w', upstream], self.project.parent)
+        self.assertEqual(set(read_json(upstream / 'workshop.json')), {'title', 'description', 'visibility', 'changeNote', 'tags', 'dependencies', 'contentDescriptors'})
+        self.assertFalse((upstream / 'mod_id.txt').exists())
 
     def test_item_art_contract_packaging_and_ownership(self):
         self.add_item_art()

@@ -83,6 +83,8 @@ For opt-in gameplay checks, use [prepare-lab and test-native](NATIVE-TESTING.md)
 
 `stage` requires a current matching build receipt. It creates a deterministic ZIP with only the configured mod DLL/manifest, declared assets/provenance, license and package report. BaseLib is an explicit external dependency. Native gameplay remains unverified until separately observed. See [publishing](PUBLISHING.md).
 
+`prepare-publish --workspace <new-id> --uploader-archive <official-zip>` consumes project-owned `publishing.json`, verifies the pinned Mega Crit uploader and prepares a private workspace under `private/workshop/`. `check-publish --workspace <id>` checks current staged bytes, metadata, item marker and verified tool bytes. Updates require matching `existing_item_id` metadata and `--existing-item`. Both commands are offline; they record preparation, never upload or prove Steam ownership/visibility. See the [publication contract](PUBLISHING.md).
+
 ## Toolkit development checks
 
 ```powershell

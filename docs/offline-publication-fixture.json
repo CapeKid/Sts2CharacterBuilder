@@ -1,0 +1,34 @@
+{
+  "kind": "offline-publication-trial",
+  "toolkit_commit": "ab222c0cbd837c1aaa4c0973132ae3e65c4c7fbc",
+  "fresh_recursive_local_clone": true,
+  "character": "PublicationTrial",
+  "compile": "compile",
+  "game": {
+    "commit": "41cef1ea",
+    "version": "v0.111.0",
+    "date": "2026-08-13T17:39:18-07:00",
+    "branch": "v0.111.0",
+    "main_assembly_hash": 222455745
+  },
+  "structural": "pass",
+  "package_sha256": "64354d14c391e17d3e7e0ff80d55634e9231e9ad6f3a4a6d7596b3064c66ea83",
+  "payload_files": 8,
+  "uploader": {
+    "repository": "https://github.com/megacrit/sts2-mod-uploader",
+    "tag": "v0.2.0",
+    "commit": "4c4db1262cdce6a1c4550a494f2e1088dbeda346",
+    "archive": "ModUploader-win-x64.zip",
+    "sha256": "2b55c19cc5932235ca9dbd663ca07d04e5d5a0018402303199f9b4ec8ca06578",
+    "executable": "ModUploader.exe"
+  },
+  "preparation": "prepared",
+  "preflight": "match",
+  "visibility": "private",
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Synthetic dependency ID and two-pixel preview; real listing/art review required",
+    "Native gameplay for this second character, physical devices, live upload/update and Steam download/ownership/visibility unperformed"
+  ]
+}

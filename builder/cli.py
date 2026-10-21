@@ -7,6 +7,7 @@ from .contracts import BuilderError, validate
 from .project import STEPS, bootstrap, generate
 from .verification import balance, build, compare_delivery, doctor, pin_check, record, resume, stage, verify
 from .native_lab import prepare, run_native
+from .publishing import prepare_publish, check_publish
 
 TOOLKIT = Path(__file__).resolve().parents[1]
 
@@ -46,6 +47,12 @@ def main():
     rec.add_argument('--evidence', action='append', default=[])
     rec.add_argument('--note', required=True)
     commands.add_parser('compare-delivery').add_argument('--directory', type=Path, required=True)
+    for name in ('prepare-publish', 'check-publish'):
+        publish = commands.add_parser(name, help='Prepare/check an offline private official-uploader workspace; never uploads')
+        publish.add_argument('--workspace', required=True, help='New ID under private/workshop, not a path')
+        publish.add_argument('--existing-item', type=int, help='Must match the explicit publishing.json update item')
+        if name == 'prepare-publish':
+            publish.add_argument('--uploader-archive', type=Path, required=True)
     args = parser.parse_args()
     root = args.project.resolve()
     try:
@@ -81,6 +88,10 @@ def main():
             result = run_native(TOOLKIT, root, args.lab_id, args.timeout)
         elif args.command == 'compare-delivery':
             result = compare_delivery(root, args.directory)
+        elif args.command == 'prepare-publish':
+            result = prepare_publish(TOOLKIT, root, args.workspace, args.uploader_archive, args.existing_item)
+        elif args.command == 'check-publish':
+            result = check_publish(TOOLKIT, root, args.workspace, args.existing_item)
         print(json.dumps(result, indent=2))
     except (BuilderError, OSError, KeyError) as error:
         parser.exit(1, f'character-builder: {error}\n')
