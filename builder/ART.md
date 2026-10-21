@@ -1,5 +1,7 @@
 # Card portraits
 
+For optional relic/potion normal, outline and large artwork, use the separate [item artwork contract](ITEMS.md). Those assignments also require declared assets and `features.art`.
+
 Each generated card can select its own SVG or PNG through an optional `portrait` property in `design/cards.json`:
 
 ```json

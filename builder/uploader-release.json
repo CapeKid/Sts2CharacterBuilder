@@ -1,0 +1,12 @@
+{
+  "repository": "https://github.com/megacrit/sts2-mod-uploader",
+  "tag": "v0.2.0",
+  "commit": "4c4db1262cdce6a1c4550a494f2e1088dbeda346",
+  "archives": {
+    "ModUploader-win-x64.zip": "2b55c19cc5932235ca9dbd663ca07d04e5d5a0018402303199f9b4ec8ca06578",
+    "ModUploader-win-arm64.zip": "8407b86c7465a69de573514da62511438f4d32d709e99f413da7d20e73a2eb7a",
+    "ModUploader-linux-x64.zip": "5b29c94bff029cd308aebd78ee153224ad16b5e9ad969c7739c128dd0d1bc2d9",
+    "ModUploader-osx-x64.zip": "ee15c1da64d713cb54d16bfbb3e8e83462dfbe1ce0b7c515c831a98bdbb8f476",
+    "ModUploader-osx-arm64.zip": "7a21d6f0890485a96f4cc27793ffa48d415158af46eae6fcf751f080bff6151f"
+  }
+}

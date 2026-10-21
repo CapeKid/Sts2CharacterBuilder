@@ -14,6 +14,7 @@
     <DefineConstants Condition="Exists('src/Generated/Sprites.cs')">$(DefineConstants);BUILDER_AUTHORED_SPRITES</DefineConstants>
     <DefineConstants Condition="Exists('src/Generated/Audio.cs')">$(DefineConstants);BUILDER_AUTHORED_AUDIO</DefineConstants>
     <DefineConstants Condition="Exists('src/Generated/Presentation.cs')">$(DefineConstants);BUILDER_AUTHORED_PRESENTATION</DefineConstants>
+    <DefineConstants Condition="Exists('src/Generated/Selection.cs')">$(DefineConstants);BUILDER_AUTHORED_SELECTION</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Alchyr.Sts2.BaseLib" Version="3.4.7" PrivateAssets="All" />

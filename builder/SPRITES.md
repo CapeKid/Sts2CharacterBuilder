@@ -66,7 +66,7 @@ Cached atlas textures are shared, while each visual owns its playback state.
 Sprites add no saved state. Native save/resume reconstructs the visuals from the
 character identity and current design; it does not resume an animation mid-frame.
 
-Rest/shop art can use independent [room presentation data](PRESENTATION.md); short sounds use [audio data](AUDIO.md). Selection, defeat/victory screens, arms, trails and other unconfigured presentation retain disclosed native runtime fallbacks. Different atlases, skeletal
+Rest/shop art can use independent [room presentation data](PRESENTATION.md); short sounds use [audio data](AUDIO.md). Selection portraits/backgrounds also use the presentation contract. Transitions, defeat/victory screens, arms, trails and other unconfigured presentation retain disclosed native runtime fallbacks. Different atlases, skeletal
 animation, custom shaders or unusual animation triggers require project-owned
 extensions and their own evidence. Do not combine an extension factory override
 with the generated factory override. No inherited mod identity or artwork ships.

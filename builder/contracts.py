@@ -92,6 +92,7 @@ def load_items(toolkit, root, config=None):
         config = read_json(contained(root, 'character.json'))
     if not config['features']['items'] and (items['relics'] or items['potions'] or 'starting_relic' in items):
         raise BuilderError('Custom items disabled: clear relics, potions and starting_relic')
+    declared = {a['path'] for a in read_json(contained(root, 'assets/manifest.json'))}
     for group in ('relics', 'potions'):
         # Native class-name conversion inserts word separators. Reserve ambiguous
         # underscore/case variants rather than discovering a collision at startup.
@@ -99,6 +100,15 @@ def load_items(toolkit, root, config=None):
         if len(ids) != len(set(ids)):
             raise BuilderError(f'Duplicate {group} IDs (including case/underscore variants)')
         for row in items[group]:
+            art = row.get('art', {})
+            if 'art' in row and not art:
+                raise BuilderError(f'{row["id"]}: item art needs at least one role, or omit art for native fallbacks')
+            if art and not config['features']['art']:
+                raise BuilderError(f'{row["id"]}: item art requires the art feature')
+            for asset in art.values():
+                contained(root, asset)
+                if asset not in declared or Path(asset).suffix.lower() not in {'.svg', '.png'}:
+                    raise BuilderError(f'{row["id"]}: item art must reference an exact declared SVG/PNG asset')
             if not any(row['effects'].values()):
                 raise BuilderError(f'{row["id"]}: item needs at least one supported effect')
             if row['effects']['focus'] and not config['features']['mechanic']:
@@ -175,9 +185,18 @@ def load_presentation(toolkit, root, config=None):
     config = config or read_json(contained(root, 'character.json'))
     if not config['features']['presentation']:
         raise BuilderError('Custom presentation disabled: clear design/presentation.json')
-    if not data['rooms']:
-        raise BuilderError('Presentation needs at least one room, or an empty object for native fallbacks')
-    for actor in data['rooms'].values():
+    if not data.get('rooms') and not data.get('selection'):
+        raise BuilderError('Presentation needs room or selection data, or an empty object for native fallbacks')
+    selection = data.get('selection', {})
+    if 'background_fit' in selection and 'background' not in selection:
+        raise BuilderError('Selection background_fit requires a background asset')
+    declared = {a['path'] for a in read_json(contained(root, 'assets/manifest.json'))}
+    for role, asset in selection.items():
+        if role == 'background_fit':
+            continue
+        if asset not in declared or Path(asset).suffix.lower() not in {'.svg', '.png'}:
+            raise BuilderError('Selection art must reference an exact declared SVG/PNG asset')
+    for actor in data.get('rooms', {}).values():
         validate_atlas(root, actor, loops={'idle'})
     return data
 

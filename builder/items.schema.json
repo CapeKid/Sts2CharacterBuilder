@@ -93,6 +93,27 @@
           "flavor": {
             "type": "string",
             "maxLength": 500
+          },
+          "art": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "icon": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
+              },
+              "outline": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
+              },
+              "large": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
+              }
+            }
           }
         }
       }
@@ -156,6 +177,27 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 10
+              }
+            }
+          },
+          "art": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "icon": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
+              },
+              "outline": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
+              },
+              "large": {
+                "type": "string",
+                "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+                "maxLength": 240
               }
             }
           }

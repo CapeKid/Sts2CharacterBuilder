@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "description", "preview", "baselib_workshop_id"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "description": {"type": "string", "minLength": 1, "maxLength": 8000},
+    "preview": {"type": "string", "pattern": "assets/[^\\\\:]+\\.png", "maxLength": 240},
+    "baselib_workshop_id": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "existing_item_id": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "change_note": {"type": "string", "maxLength": 8000},
+    "tags": {"type": "array", "maxItems": 20, "items": {"type": "string", "minLength": 1, "maxLength": 64}},
+    "dependencies": {"type": "array", "maxItems": 30, "items": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}},
+    "content_descriptors": {"type": "array", "maxItems": 5, "items": {"type": "string", "enum": ["nudity", "frequent_violence", "adult_only", "gratuitous_nudity", "general_mature"]}}
+  }
+}

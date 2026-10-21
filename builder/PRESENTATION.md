@@ -1,6 +1,6 @@
 # Rest and shop presentation
 
-Optional `design/presentation.json` follows [presentation.schema.json](presentation.schema.json). Set `features.presentation` true. Missing/`{}` data installs no room hooks; the original icon and native room imagery remain available. Supply either or both `rest` and `shop`; an omitted room keeps its native character art. Empty `rooms` is rejected to distinguish an authored design from the skip outcome.
+Optional `design/presentation.json` follows [presentation.schema.json](presentation.schema.json). Set `features.presentation` true. Missing/`{}` data installs no presentation hooks; the original icon and native imagery remain available. Supply `rooms`, `selection` or both. A design needs at least one room or selection-art choice; omitted sections keep their native imagery.
 
 ```json
 {
@@ -31,4 +31,22 @@ Generated `src/Generated/Presentation.cs` attaches one private `AnimatedSprite2D
 
 Each actor owns its frames/playback and uses cached atlas textures. Leaving/recreating a room releases/rebuilds the actor; reentering the scene tree starts idle. Actors use weak scene ownership and node signals, with no global per-frame room watcher or new saved state. A native rest pre-entry map checkpoint and full run reload reconstruct the authored actor at idle. Debug room entry alone does not bind the saved map coordinate and is not room-resume evidence. No Godot imports, editor export or PCK is required.
 
-Run `validate`, `generate`, `generate --check`, an owned-game build and a fresh isolated native lab. Current native evidence must cover every configured room, ownership/fallback controls and rest reconstruction on save/resume when authored. Native geometry/action checks do not establish art quality, human layout review, device navigation or co-op campaign behavior. Selection/transition/ending imagery, energy counters, arms, trails and VFX still require extensions and their own evidence. Do not combine another room-body replacer with this generated integration. Project-owned extensions must not implement the reserved `ModEntry.InitializePresentation` partial method.
+Selection art uses a separate optional section:
+
+```json
+{
+  "schema_version": 1,
+  "selection": {
+    "portrait": "assets/selection/portrait.png",
+    "locked_portrait": "assets/selection/locked.svg",
+    "background": "assets/selection/background.svg",
+    "background_fit": "contain"
+  }
+}
+```
+
+Each image is an exact declared SVG/PNG asset with provenance. Supply any subset of the three image roles. Unassigned roles retain native artwork; `background_fit` requires a background and accepts `cover` (default, crop to fill) or `contain` (preserve the whole image with unused space). Selection art requires neither room nor combat-sprite data. It owns `src/Generated/Selection.cs` and the reserved `ModEntry.InitializeSelection` partial method.
+
+Native button initialization and lock/unlock controls refresh this character's assigned portrait. The animation-only lock uses locked art without changing unlock availability. A guarded replacement of the native unlock animation's single icon assignment keeps both the portrait and glow on authored art during the animation; other characters use the native getter. An unsupported native assignment layout is rejected instead of silently patching it. The native lock glyph, shaders, availability, focus and activation behavior stay native; artwork does not unlock a character. An unlocked, explicit selection of this character displays a noninteractive full-container texture behind the native information panel and controls. Locked and random selections retain native backgrounds. Switching to another character lets native selection replace the background normally. Cached image textures are shared; background nodes follow the native screen's lifecycle. This integration covers the selection screen, not the run-start transition or ending screens.
+
+Run `validate`, `generate`, `generate --check`, an owned-game build and a fresh isolated native lab. Current native evidence must cover every configured room and selection-art role, selection/fallback controls and rest reconstruction on save/resume when authored. Native geometry/action checks do not establish art quality, human layout review, physical device navigation or co-op campaign behavior. Transition/ending imagery, energy counters, arms, trails and VFX still require extensions and their own evidence. Do not combine another body/selection-art replacer with the corresponding generated integration. Project-owned extensions must not implement the reserved generated initializers.

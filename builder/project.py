@@ -221,11 +221,16 @@ def generated(toolkit, root):
         template = (toolkit / 'builder/templates/Audio.cs.txt').read_text()
         outputs['src/Generated/Audio.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     presentation = load_presentation(toolkit, root, config)
-    if presentation:
+    if presentation and presentation.get('rooms'):
         replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
                             PRESENTATION_JSON=quote(json.dumps(presentation, ensure_ascii=True)))
         template = (toolkit / 'builder/templates/Presentation.cs.txt').read_text()
         outputs['src/Generated/Presentation.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
+    if presentation and presentation.get('selection'):
+        replacements = dict(NAMESPACE=config['namespace'], MOD_ID=quote(config['id']),
+                            SELECTION_JSON=quote(json.dumps(presentation['selection'], ensure_ascii=True)))
+        template = (toolkit / 'builder/templates/Selection.cs.txt').read_text()
+        outputs['src/Generated/Selection.cs'] = re.sub(r'@([A-Z_]+)@', lambda m: replacements[m[1]], template).encode()
     return outputs
 
 

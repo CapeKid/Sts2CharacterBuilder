@@ -2,8 +2,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version",
-    "rooms"
+    "schema_version"
   ],
   "properties": {
     "schema_version": {
@@ -313,6 +312,34 @@
               }
             }
           }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "portrait": {
+          "type": "string",
+          "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+          "maxLength": 240
+        },
+        "locked_portrait": {
+          "type": "string",
+          "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+          "maxLength": 240
+        },
+        "background": {
+          "type": "string",
+          "pattern": "assets/[^\\\\:]+\\.(svg|png)",
+          "maxLength": 240
+        },
+        "background_fit": {
+          "type": "string",
+          "enum": [
+            "cover",
+            "contain"
+          ]
         }
       }
     }

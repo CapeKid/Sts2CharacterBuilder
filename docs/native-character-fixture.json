@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "7e3c6c93a01e8d28f5ebde99931d8a936af7188edb83700aa5e6833e60406117",
-  "source_sha256": "f6e320451f9ad5c1c6cb3f025d0f32babfbdc1c54f345e9d784c20697073a4d1",
-  "release_dll_sha256": "87e2ba29e242b04ad34a0906eca15a8e11e7ab98423055183eaaa02d0f8bea55",
-  "test_dll_sha256": "bb6adc0843b9ec45d8c108c1f29afee99d73d7ec641986682fc56a8c75635890",
+  "input_sha256": "6afb918bb8b1097ec8ece5d37b4880f89e54674a615ceb50752936cb7be8bfcc",
+  "source_sha256": "545ed0b3029d803e081bd94c58f884c2f1ee1070dfede2ffde7646b7dc8c2b3e",
+  "release_dll_sha256": "4e2f46fd4c8db34377f255410f75003872fe589b58d2db4e050014efee3949ef",
+  "test_dll_sha256": "268b905efe2cbff001cf126827c59cbf4d9e6dabeb058e7a6f16e9afe2560de5",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "7f7318764929257c428e8b0aaee8f927e709d175559514d58fcaffce43db06dd",
+  "probe_source_sha256": "07ff149f4be5f0fca751764d4446d11551d2bbf20fe5593df806481f770412b7",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -24,8 +24,8 @@
     "Campaign balance and Workshop delivery unperformed",
     "Audible/hardware review and hurt/victory/compressed/looped audio unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction; Fairy in a Bottle automatic lethal-hit/repeated recovery and held-death-pose control; short stereo PCM16 WAV cues for selection/transition/attack/cast/death, native non-Spine death sound, live mute/gain/voice-lifetime controls; independent rest/shop atlas actors, native rest/purchase responses, native rest map checkpoint/reload and Windows progress-reader lock controls",
-  "fixture_toolkit_snapshot": "e9d488c20569bd9f361fca125700cf8c71b1f035",
+  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction; Fairy in a Bottle automatic lethal-hit/repeated recovery and held-death-pose control; short stereo PCM16 WAV cues for selection/transition/attack/cast/death, native non-Spine death sound, live mute/gain/voice-lifetime controls; independent rest/shop atlas actors, native rest/purchase responses, native rest map checkpoint/reload and Windows progress-reader lock controls; declared SVG/PNG selection portraits and background, native focus selection, visual lock/unlock animation and glow, replacement/foreign controls and Back navigation; declared relic/potion normal/outline/large SVG/PNG art with native UI refresh, omitted-role/foreign controls, mutable and serialized models and full native run reload",
+  "fixture_toolkit_snapshot": "8da6bcded3fb76ffdaf941d9a9751cec53a2188a",
   "checks": [
     {
       "check": "native-io",
@@ -37,6 +37,35 @@
       "check": "registration",
       "character": "CHARACTER.NATIVEFIXTURE-CHARACTER",
       "hp": 70
+    },
+    {
+      "check": "selection-art",
+      "role": "portrait",
+      "asset": "assets/selection/portrait.svg",
+      "nativeInit": true,
+      "unlockRefresh": true
+    },
+    {
+      "check": "selection-art",
+      "role": "locked_portrait",
+      "asset": "assets/selection/locked.png",
+      "nativeLock": true
+    },
+    {
+      "check": "selection-art",
+      "role": "background",
+      "asset": "assets/selection/background.svg",
+      "nativeFocus": true,
+      "fit": "KeepAspectCentered",
+      "otherCharacterUnchanged": true,
+      "cleanup": true
+    },
+    {
+      "check": "selection-controls",
+      "nativeButton": true,
+      "keyboardFocus": true,
+      "nativeBack": true,
+      "unlockStatePreserved": true
     },
     {
       "check": "starting-kit",
@@ -387,6 +416,39 @@
       "starterShopExcluded": true
     },
     {
+      "check": "item-art",
+      "group": "relics",
+      "id": "Primer",
+      "role": "icon",
+      "asset": "assets/items/token.svg",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
+      "check": "item-art",
+      "group": "relics",
+      "id": "Primer",
+      "role": "outline",
+      "asset": "assets/items/outline.png",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
+      "check": "item-art",
+      "group": "relics",
+      "id": "Primer",
+      "role": "large",
+      "asset": "assets/items/large token.svg",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
       "check": "authored-relic",
       "id": "Primer",
       "acquisition": "Starter",
@@ -405,6 +467,17 @@
       "savedTrigger": true,
       "nextTurn": true,
       "combatReset": true
+    },
+    {
+      "check": "item-art",
+      "group": "relics",
+      "id": "PocketGuide",
+      "role": "outline",
+      "asset": "assets/items/outline.png",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
     },
     {
       "check": "authored-relic",
@@ -437,6 +510,39 @@
       "combatReset": true
     },
     {
+      "check": "item-art",
+      "group": "potions",
+      "id": "Reset",
+      "role": "icon",
+      "asset": "assets/items/token.svg",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
+      "check": "item-art",
+      "group": "potions",
+      "id": "Reset",
+      "role": "outline",
+      "asset": "assets/items/outline.png",
+      "nativeUi": true,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
+      "check": "item-art",
+      "group": "potions",
+      "id": "Reset",
+      "role": "large",
+      "asset": "assets/items/large token.svg",
+      "nativeUi": false,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
+    },
+    {
       "check": "authored-potion",
       "id": "Reset",
       "purchased": true,
@@ -446,6 +552,17 @@
       "invalidTargetPreserved": true,
       "duplicateSuppressed": true,
       "consumed": true
+    },
+    {
+      "check": "item-art",
+      "group": "potions",
+      "id": "Shield",
+      "role": "large",
+      "asset": "assets/items/large token.svg",
+      "nativeUi": false,
+      "pixels": true,
+      "cache": true,
+      "foreignPreserved": true
     },
     {
       "check": "authored-potion",
@@ -1022,5 +1139,5 @@
     "Rare/Attack": 8,
     "Uncommon/Power": 9
   },
-  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item, event, dialogue, locale, combat-sprite, short PCM audio and independent rest/shop integration evidence. Human art/layout and audible/hardware review, selection/ending presentation, devices, co-op and balance remain separate gates."
+  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, card/item artwork, event, dialogue, locale, combat-sprite, short PCM audio, independent rest/shop and selection UI integration evidence. Human art/layout and audible/hardware review, transition/ending presentation, physical devices, co-op and balance remain separate gates."
 }

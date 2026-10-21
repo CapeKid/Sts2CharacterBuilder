@@ -8,12 +8,14 @@ import subprocess
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 import zlib
 
 from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
+from builder.publishing import check_publish, prepare_publish, publication
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -48,6 +50,23 @@ def authored_events():
                           choice('Exchange', gold=10, hp=3, gain=15, heal=4)]),
             dict(id='LastLesson', name='A Last Lesson', body='A final lesson awaits.', acts=[3],
                  choices=[choice('Listen', heal=8)])]
+
+
+def item_art_assets():
+    def svg(color):
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="{color}"/><path d="M28 48L44 64L70 30" fill="none" stroke="#FFFFFF" stroke-width="8"/></svg>'.encode()
+    return {'assets/items/token.svg': svg('#57B8A7'), 'assets/items/outline.png': portrait_png(),
+            'assets/items/large token.svg': svg('#D6B66B')}
+
+
+def items_with_art():
+    items = authored_items()
+    art = dict(zip(('icon', 'outline', 'large'), item_art_assets()))
+    items['relics'][0]['art'] = art.copy()
+    items['potions'][0]['art'] = art.copy()
+    items['relics'][2]['art'] = {'outline': art['outline']}
+    items['potions'][1]['art'] = {'large': art['large']}
+    return items
 
 
 def authored_dialogue():
@@ -97,6 +116,15 @@ def authored_presentation():
     return dict(schema_version=1, rooms=dict(rest=copy.deepcopy(actor), shop=copy.deepcopy(actor)))
 
 
+def authored_selection():
+    return dict(portrait='assets/selection/portrait.svg', locked_portrait='assets/selection/locked.png',
+                background='assets/selection/background.svg', background_fit='contain')
+
+
+def selection_background():
+    return b'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800"><rect width="1280" height="800" fill="#192B40"/><circle cx="850" cy="400" r="240" fill="#57B8A7"/><path d="M620 720L980 100L1180 720Z" fill="#D6B66B"/></svg>'
+
+
 class ToolkitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -136,11 +164,180 @@ class ToolkitTests(unittest.TestCase):
         change(value)
         atomic(self.project / path, encoded(value))
 
+    def add_selection(self):
+        for path, data in [('assets/selection/portrait.svg', (self.project / 'assets/icon.svg').read_bytes()),
+                           ('assets/selection/locked.png', portrait_png()),
+                           ('assets/selection/background.svg', selection_background())]:
+            atomic(self.project / path, data)
+            self.edit('assets/manifest.json', lambda rows: rows.append(dict(path=path, sha256=digest(data), method='original', license='MIT', credit='Original selection test art')))
+        path = self.project / 'design/presentation.json'
+        data = read_json(path) if path.exists() else {}
+        data.update(schema_version=1, selection=authored_selection())
+        atomic(path, encoded(data))
+
+    def add_item_art(self):
+        for path, data in item_art_assets().items():
+            atomic(self.project / path, data)
+            self.edit('assets/manifest.json', lambda rows: rows.append(dict(path=path, sha256=digest(data), method='original', license='MIT', credit='Original item test art')))
+        atomic(self.project / 'design/items.json', encoded(items_with_art()))
+
+    def publication_fixture(self):
+        self.add_portrait()
+        atomic(self.project / 'publishing.json', encoded(dict(schema_version=1, description='Private fixture, not a release.',
+            preview='assets/cards/Strike art.png', baselib_workshop_id=1234567890, tags=['Characters'])))
+        generate(self.toolkit, self.project)
+        self.mock_build()
+        archive = self.project.parent / 'ModUploader-win-x64.zip'
+        with zipfile.ZipFile(archive, 'w') as package:
+            for name, data in {'ModUploader.exe': b'Offline test double; never executed',
+                    'template/workshop.json': b'{"visibility":"private"}', 'template/README.md': b'Fixture template'}.items():
+                package.writestr(name, data)
+        pin = read_json(self.toolkit / 'builder/uploader-release.json')
+        pin['archives'] = {archive.name: digest(archive.read_bytes())}
+        return archive, pin
+
+    def test_publication_new_workspace_and_exact_private_payload(self):
+        archive, pin = self.publication_fixture()
+        atomic(self.project / 'mod_id.txt', b'9999999999')
+        atomic(self.project / 'workshop.json', b'{"title":"Unrelated legacy workspace"}')
+        with patch('builder.publishing.uploader_release', return_value=pin):
+            alias = self.project / '..' / self.project.name
+            prepared = prepare_publish(self.toolkit, alias, 'first-private', archive)
+            workspace = Path(prepared['workspace'])
+            self.assertFalse((workspace / 'mod_id.txt').exists())
+            self.assertEqual(read_json(workspace / 'workshop.json')['dependencies'], [1234567890])
+            self.assertEqual(read_json(workspace / 'workshop.json')['title'], 'Test Hero')
+            self.assertEqual(check_publish(self.toolkit, alias, 'first-private')['status'], 'match')
+            self.assertFalse(prepared['uploaded'])
+            self.assertFalse(prepared['release_ready'])
+            self.assertEqual(prepared['visibility'], 'private')
+            self.assertEqual(resume(self.toolkit, self.project)['steps']['publish']['status'], 'ready')
+            original = (workspace / 'image.png').read_bytes()
+            with self.assertRaisesRegex(BuilderError, 'already exists'):
+                prepare_publish(self.toolkit, self.project, 'first-private', archive)
+            self.assertEqual((workspace / 'image.png').read_bytes(), original)
+            with self.assertRaises(BuilderError): prepare_publish(self.toolkit, self.project, '../escape', archive)
+            for name in ('extra.dll', 'TestHero/package-inspection.json'):
+                path = workspace / 'content' / name
+                before = path.read_bytes() if path.exists() else None
+                atomic(path, b'changed')
+                with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'first-private')
+                if before is None: path.unlink()
+                else: atomic(path, before)
+            self.edit('publishing.json', lambda d: d.update(description='Revised publication text'))
+            self.assertEqual(resume(self.toolkit, self.project)['steps']['publish']['status'], 'pending')
+            with self.assertRaisesRegex(BuilderError, 'stale'): check_publish(self.toolkit, self.project, 'first-private')
+
+    def test_publication_update_identity_tool_tampering_and_stale_build(self):
+        archive, pin = self.publication_fixture()
+        self.edit('publishing.json', lambda d: d.update(existing_item_id=2345678901))
+        with patch('builder.publishing.uploader_release', return_value=pin):
+            for selected in (None, 3456789012):
+                with self.assertRaisesRegex(BuilderError, 'matching publishing.json'):
+                    prepare_publish(self.toolkit, self.project, 'update', archive, selected)
+            prepared = prepare_publish(self.toolkit, self.project, 'update', archive, 2345678901)
+            workspace = Path(prepared['workspace'])
+            self.assertEqual((workspace / 'mod_id.txt').read_text(), '2345678901\n')
+            check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(workspace / 'mod_id.txt', b'3456789012\n')
+            with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(workspace / 'mod_id.txt', b'2345678901\n')
+            tool = workspace / 'tools/uploader/ModUploader.exe'
+            original = tool.read_bytes(); atomic(tool, b'changed binary')
+            # A rewritten receipt is not a substitute for the official archive.
+            receipt_path = workspace / 'publication-preparation.json'
+            receipt = read_json(receipt_path)
+            receipt['files']['tools/uploader/ModUploader.exe'] = digest(tool.read_bytes())
+            atomic(receipt_path, encoded(receipt))
+            with self.assertRaisesRegex(BuilderError, 'uploader pin differs'):
+                check_publish(self.toolkit, self.project, 'update', 2345678901)
+            atomic(tool, original)
+            self.edit('character.json', lambda c: c.update(hp=71))
+            with self.assertRaises(BuilderError): check_publish(self.toolkit, self.project, 'update', 2345678901)
+
+    def test_publication_invalid_metadata_and_archive(self):
+        archive, pin = self.publication_fixture()
+        original = read_json(self.project / 'publishing.json')
+        for change in (lambda d: d.update(preview='assets/cards/strike art.png'),
+                       lambda d: d.update(preview='assets/../preview.png'),
+                       lambda d: d.update(baselib_workshop_id=True),
+                       lambda d: d.update(dependencies=[1234567890]),
+                       lambda d: d.update(tags=['Characters', 'Characters']),
+                       lambda d: d.update(content_descriptors=['unknown']),
+                       lambda d: d.update(visibility='public')):
+            data = copy.deepcopy(original); change(data)
+            atomic(self.project / 'publishing.json', encoded(data))
+            with self.assertRaises(BuilderError): publication(self.toolkit, self.project)
+        atomic(self.project / 'publishing.json', encoded(original))
+        with self.assertRaisesRegex(BuilderError, 'not a pinned official release'):
+            prepare_publish(self.toolkit, self.project, 'bad-archive', archive)
+        self.assertFalse((self.project / 'private/workshop/bad-archive').exists())
+        image_path = self.project / original['preview']
+        data = image_path.read_bytes()
+        payload = b'x' * 1_000_000
+        chunk = b'tEXt' + payload
+        data = data[:-12] + struct.pack('>I', len(payload)) + chunk + struct.pack('>I', zlib.crc32(chunk)) + data[-12:]
+        atomic(image_path, data)
+        self.edit('assets/manifest.json', lambda rows: [r.update(sha256=digest(data)) for r in rows if r['path'] == original['preview']])
+        with self.assertRaisesRegex(BuilderError, 'smaller than 1 MB'): publication(self.toolkit, self.project)
+
+    @unittest.skipUnless(os.environ.get('BUILDER_TEST_UPLOADER_ARCHIVE'), 'Official uploader archive integration is opt-in')
+    def test_official_uploader_archive_cli_and_offline_new_command(self):
+        self.publication_fixture()
+        archive = Path(os.environ['BUILDER_TEST_UPLOADER_ARCHIVE']).resolve()
+        cli = self.toolkit / 'scripts/character-builder.py'
+        import sys
+        import json
+        prepared = json.loads(run([sys.executable, cli, '--project', self.project, 'prepare-publish', '--workspace', 'official', '--uploader-archive', archive]))
+        checked = json.loads(run([sys.executable, cli, '--project', self.project, 'check-publish', '--workspace', 'official']))
+        self.assertEqual(checked['status'], 'match')
+        self.assertFalse(checked['uploaded'])
+        # The official 'new' command is offline. Never invoke upload or remove.
+        upstream = self.project.parent / 'Official empty workspace'
+        run([prepared['upload_argv'][0], 'new', '-w', upstream], self.project.parent)
+        self.assertEqual(set(read_json(upstream / 'workshop.json')), {'title', 'description', 'visibility', 'changeNote', 'tags', 'dependencies', 'contentDescriptors'})
+        self.assertFalse((upstream / 'mod_id.txt').exists())
+
+    def test_item_art_contract_packaging_and_ownership(self):
+        self.add_item_art()
+        generate(self.toolkit, self.project)
+        before = input_hash(self.project)
+        original = items_with_art()
+        for change in (lambda d: d['relics'][0].update(art={}),
+                       lambda d: d['potions'][0]['art'].update(icon='assets/items/Token.svg'),
+                       lambda d: d['relics'][0]['art'].update(icon='assets/missing.png'),
+                       lambda d: d['relics'][0]['art'].update(icon='assets/../items/token.svg'),
+                       lambda d: d['potions'][0]['art'].update(extra='assets/icon.svg'),
+                       lambda d: d['potions'][0]['art'].update(icon='assets/bad.wav')):
+            data = copy.deepcopy(original); change(data)
+            atomic(self.project / 'design/items.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/items.json', encoded(original))
+        self.edit('character.json', lambda c: c['features'].update(art=False))
+        with self.assertRaisesRegex(BuilderError, 'art requires the art feature'): validate(self.toolkit, self.project)
+        self.edit('character.json', lambda c: c['features'].update(art=True))
+        self.mock_build()
+        with zipfile.ZipFile(stage(self.toolkit, self.project)['archive']) as archive:
+            for path, data in item_art_assets().items(): self.assertEqual(archive.read('TestHero/' + path), data)
+        frozen = read_json(self.project / 'design/model-ids.json')
+        self.edit('design/items.json', lambda d: d['relics'][0]['art'].pop('icon'))
+        generate(self.toolkit, self.project)
+        self.assertNotEqual(before, input_hash(self.project))
+        self.assertEqual(frozen, read_json(self.project / 'design/model-ids.json'))
+        source = self.project / 'src/Generated/Items.cs'
+        atomic(source, source.read_bytes() + b'// manual edit\n')
+        self.edit('design/items.json', lambda d: d['relics'][0].pop('art'))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'): generate(self.toolkit, self.project)
+
     def add_presentation(self):
         data = sprite_svg()
         atomic(self.project / 'assets/presentation/room.svg', data)
         self.edit('assets/manifest.json', lambda rows: rows.append(dict(path='assets/presentation/room.svg', sha256=digest(data), method='original', license='MIT', credit='Original room test actor')))
-        atomic(self.project / 'design/presentation.json', encoded(authored_presentation()))
+        design = authored_presentation()
+        current = read_json(self.project / 'design/presentation.json')
+        if current.get('selection'):
+            design['selection'] = current['selection']
+        atomic(self.project / 'design/presentation.json', encoded(design))
 
     def add_audio(self):
         data = audio_wav(channels=2)
@@ -544,6 +741,46 @@ class ToolkitTests(unittest.TestCase):
         self.assertEqual(load_dialogue(self.toolkit, self.project), [])
         generate(self.toolkit, self.project, check=True)
 
+    def test_selection_contract_optional_generation_and_packaging(self):
+        self.add_selection()
+        generate(self.toolkit, self.project)
+        self.assertTrue((self.project / 'src/Generated/Selection.cs').exists())
+        self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
+        self.assertFalse((self.project / 'src/Generated/Sprites.cs').exists())
+        for mutate in (lambda d: d['selection'].update(background_fit='stretch'),
+                       lambda d: d['selection'].update(portrait='assets/selection/Portrait.svg'),
+                       lambda d: d['selection'].update(background='assets/missing.png'),
+                       lambda d: d['selection'].update(unknown='assets/icon.svg'),
+                       lambda d: d.update(selection={'background_fit':'contain'})):
+            data = dict(schema_version=1, selection=authored_selection()); mutate(data)
+            atomic(self.project / 'design/presentation.json', encoded(data))
+            with self.assertRaises(BuilderError): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/presentation.json', encoded(dict(schema_version=1, selection=authored_selection())))
+        generate(self.toolkit, self.project)
+        self.mock_build()
+        report = stage(self.toolkit, self.project)
+        with zipfile.ZipFile(report['archive']) as archive:
+            self.assertEqual(archive.read('TestHero/assets/selection/background.svg'), selection_background())
+            self.assertEqual(archive.read('TestHero/assets/selection/locked.png'), portrait_png())
+            self.assertNotIn('TestHero/design/presentation.json', archive.namelist())
+        self.edit('character.json', lambda c: c['features'].update(presentation=False))
+        with self.assertRaisesRegex(BuilderError, 'presentation disabled'): validate(self.toolkit, self.project)
+        atomic(self.project / 'design/presentation.json', encoded({}))
+        generate(self.toolkit, self.project)
+        self.assertFalse((self.project / 'src/Generated/Selection.cs').exists())
+
+    def test_selection_and_room_generation_ownership(self):
+        self.add_presentation(); self.add_selection()
+        generate(self.toolkit, self.project)
+        before = input_hash(self.project)
+        self.edit('design/presentation.json', lambda d: d['selection'].update(background_fit='cover'))
+        generate(self.toolkit, self.project)
+        self.assertNotEqual(before, input_hash(self.project))
+        source = self.project / 'src/Generated/Selection.cs'
+        atomic(source, source.read_bytes() + b'// manual edit\n')
+        self.edit('design/presentation.json', lambda d: d.pop('selection'))
+        with self.assertRaisesRegex(BuilderError, 'Hand-edited'): generate(self.toolkit, self.project)
+
     def test_room_presentation_contract_and_independent_generation(self):
         self.assertIsNone(load_presentation(self.toolkit, self.project))
         self.add_presentation()
@@ -698,9 +935,10 @@ class ToolkitTests(unittest.TestCase):
 
     def test_native_evidence_requires_complete_current_coverage(self):
         self.add_presentation()
+        self.add_selection()
         self.add_audio()
         self.add_sprites()
-        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
@@ -709,7 +947,10 @@ class ToolkitTests(unittest.TestCase):
         self.mock_build()
         cards = read_json(self.project / 'design/cards.json')
         # Synthetic envelope tests evidence handling only; it is not gameplay evidence.
-        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'native-io')]
+        checks = [dict(check=label) for label in ('registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'sprite-victory', 'sprite-reset', 'sprite-resume', 'audio-controls', 'presentation-controls', 'native-io', 'selection-controls')]
+        checks += [dict(check='selection-art', role=key) for key in ('portrait', 'locked_portrait', 'background')]
+        checks += [dict(check='item-art', group=group, id=row['id'], role=role, asset=asset)
+                   for group in ('relics', 'potions') for row in items_with_art()[group] for role, asset in row.get('art', {}).items()]
         checks += [dict(check='presentation-resume', room='rest')]
         checks += [dict(check='room-presentation', room=key) for key in authored_presentation()['rooms']]
         checks += [dict(check='audio-cue', cue=key) for key in authored_audio()['cues']]
@@ -775,6 +1016,14 @@ class ToolkitTests(unittest.TestCase):
         receipt['checks'] = checks + [dict(check='sprite-fairy-revive', case='lethal-hit')]
         publish()
         with self.assertRaisesRegex(BuilderError, 'Fairy sprite revive'): native_evidence(self.toolkit, self.project)
+        for selection_checks in ([c for c in checks if c.get('check') != 'selection-art'], checks + [dict(check='selection-art', role='background')]):
+            receipt['checks'] = selection_checks
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'selection artwork'): native_evidence(self.toolkit, self.project)
+        for artwork in ([c for c in checks if c.get('check') != 'item-art'], checks + [dict(check='item-art', group='relics', id='Primer', role='icon', asset='assets/items/token.svg')]):
+            receipt['checks'] = artwork
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'item artwork'): native_evidence(self.toolkit, self.project)
         for room_checks in ([c for c in checks if c.get('check') != 'room-presentation'], checks + [dict(check='room-presentation', room='rest')]):
             receipt['checks'] = room_checks
             publish()
@@ -803,11 +1052,12 @@ class ToolkitTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile(self):
+        self.add_selection()
         self.add_presentation()
         self.add_audio()
         self.add_sprites()
         self.add_portrait()
-        atomic(self.project / 'design/items.json', encoded(authored_items()))
+        self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
@@ -850,6 +1100,7 @@ public static partial class ModEntry
         probe = probe.replace('@SPRITE_PROBE@', (self.toolkit / 'builder/templates/NativeSprites.cs.txt').read_text())
         probe = probe.replace('@AUDIO_PROBE@', (self.toolkit / 'builder/templates/NativeAudio.cs.txt').read_text())
         probe = probe.replace('@PRESENTATION_PROBE@', (self.toolkit / 'builder/templates/NativePresentation.cs.txt').read_text())
+        probe = probe.replace('@SELECTION_PROBE@', (self.toolkit / 'builder/templates/NativeSelection.cs.txt').read_text())
         atomic(self.project / 'private/NativeProbe.cs', probe.encode())
         run(['dotnet', 'build', self.project / 'Character.csproj', '--configuration', 'Release',
              '--output', self.project / 'private/probe-compile', '-p:Sts2DataDir=' + os.environ['BUILDER_TEST_GAME_DATA'],
@@ -857,6 +1108,7 @@ public static partial class ModEntry
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
+        self.add_selection()
         self.add_presentation()
         self.add_audio()
         self.edit('character.json', lambda c: (c['features'].update(cards=False, mechanic=False), c.update(starting_deck=[])))
@@ -872,6 +1124,13 @@ public static partial class ModEntry
         self.assertNotIn('FocusPower', (self.project / 'src/Generated/Items.cs').read_text())
         self.assertTrue((self.project / 'src/Generated/Presentation.cs').exists())
         self.assertFalse((self.project / 'src/Generated/Sprites.cs').exists())
+        # Compile the selector independently of both room and combat generators.
+        self.edit('design/presentation.json', lambda d: d.pop('rooms'))
+        generate(self.toolkit, self.project)
+        build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
+        self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
+        self.assertTrue((self.project / 'src/Generated/Selection.cs').exists())
+
 
 
 if __name__ == '__main__':

@@ -1,0 +1,101 @@
+    private static async Task Selection()
+    {
+#if BUILDER_AUTHORED_SELECTION
+        var stack = NGame.Instance!.MainMenu!.SubmenuStack;
+        var screen = stack.GetSubmenuType<MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectScreen>();
+        screen.InitializeSingleplayer(); stack.Push(screen);
+        try {
+            var buttons = SelectionNodes(screen).OfType<MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectButton>().ToArray();
+            var own = buttons.Single(b => b.Character is Character);
+            var foreign = buttons.First(b => b.Character is MegaCrit.Sts2.Core.Models.Characters.Ironclad);
+            var iconField = AccessTools.Field(own.GetType(), "_icon");
+            TextureRect Icon(MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect.NCharacterSelectButton button) => (TextureRect)iconField.GetValue(button)!;
+            var foreignTexture = Icon(foreign).Texture.GetInstanceId();
+            var data = Request.GetProperty("presentation").GetProperty("selection");
+            var unlocks = SaveManager.Instance.GenerateUnlockStateFromProgress().Characters.Select(c => c.Id.ToString()).OrderBy(x => x).ToArray();
+            var initialRole = own.IsLocked ? "locked_portrait" : "portrait";
+            if (data.TryGetProperty(initialRole, out var initialAsset)) SelectionPixels(Icon(own).Texture, initialAsset.GetString()!);
+            own.DebugUnlock();
+            if (data.TryGetProperty("portrait", out var portrait)) {
+                SelectionPixels(Icon(own).Texture, portrait.GetString()!);
+                own.LockForAnimation();
+                Require(!own.IsLocked, "Visual animation lock changed unlock availability.");
+                own.DebugUnlock();
+                SelectionPixels(Icon(own).Texture, portrait.GetString()!);
+                Checks.Add(new { check = "selection-art", role = "portrait", asset = portrait.GetString(), nativeInit = true, unlockRefresh = true });
+            }
+            if (data.TryGetProperty("locked_portrait", out var locked)) {
+                own.LockForAnimation();
+                SelectionPixels(Icon(own).Texture, locked.GetString()!);
+                // Availability lock is a separate, test-only control. The
+                // native animation lock deliberately does not set this field.
+                AccessTools.Field(own.GetType(), "_isLocked").SetValue(own, true);
+                screen.SelectCharacter(own, own.Character);
+                Require(CharacterSelection.Background(screen) == null, "Unavailable selection displayed authored background.");
+                AccessTools.Field(own.GetType(), "_isLocked").SetValue(own, false);
+                Checks.Add(new { check = "selection-art", role = "locked_portrait", asset = locked.GetString(), nativeLock = true });
+                own.DebugUnlock();
+            }
+            own.LockForAnimation();
+            await own.AnimateUnlock();
+            if (data.TryGetProperty("portrait", out var animatedPortrait)) {
+                SelectionPixels(Icon(own).Texture, animatedPortrait.GetString()!);
+                var glow = (TextureRect)AccessTools.Field(own.GetType(), "_iconAdd").GetValue(own)!;
+                SelectionPixels(glow.Texture, animatedPortrait.GetString()!);
+            }
+            own.DebugUnlock();
+            own.GrabFocus();
+            Require(own.HasFocus(), "Native character button lost keyboard focusability.");
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(own);
+            if (data.TryGetProperty("background", out var asset)) {
+                var background = CharacterSelection.Background(screen) ?? throw new InvalidDataException("Native character selection did not display authored background.");
+                SelectionPixels(background.Texture, asset.GetString()!);
+                Require(background.IsVisibleInTree() && background.Size.X > 0 && background.Size.Y > 0, "Selection background has no visible bounds.");
+                Require(background.MouseFilter == Control.MouseFilterEnum.Ignore && background.FocusMode == Control.FocusModeEnum.None, "Selection artwork blocks native input.");
+                var fit = data.TryGetProperty("background_fit", out var fitValue) && fitValue.GetString() == "contain"
+                    ? TextureRect.StretchModeEnum.KeepAspectCentered : TextureRect.StretchModeEnum.KeepAspectCovered;
+                Require(background.StretchMode == fit, "Selection background fit differs.");
+                var oldId = background.GetInstanceId();
+                var parent = background.GetParent();
+                Require(parent.GetChildren().OfType<CanvasItem>().Where(n => n != background).All(n => !n.Visible), "Native fallback background overlaps authored art.");
+                foreign.GrabFocus();
+                await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(foreign);
+                Require(CharacterSelection.Background(screen) == null, "Native foreign-character focus did not replace authored background.");
+                Require(Icon(foreign).Texture.GetInstanceId() == foreignTexture, "Foreign character portrait changed.");
+                await Wait(() => !GodotObject.IsInstanceValid(background), "Replaced selection artwork was retained.");
+                own.GrabFocus();
+                await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(own);
+                var rebuilt = CharacterSelection.Background(screen);
+                Require(rebuilt != null && rebuilt.GetInstanceId() != oldId, "Revisited selection did not reconstruct art.");
+                screen.SelectCharacter(own, own.Character);
+                await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
+                Require(CharacterSelection.Background(screen) is {} repeated && repeated.GetParent().GetChildren().OfType<TextureRect>().Count(t => t.Name == "BuilderSelectionArt") == 1, "Repeated selection duplicated artwork.");
+                Checks.Add(new { check = "selection-art", role = "background", asset = asset.GetString(), nativeFocus = true, fit = fit.ToString(), otherCharacterUnchanged = true, cleanup = true });
+            }
+            Require(Icon(foreign).Texture.GetInstanceId() == foreignTexture, "Foreign selection portrait replaced.");
+            Require(SaveManager.Instance.GenerateUnlockStateFromProgress().Characters.Select(c => c.Id.ToString()).OrderBy(x => x).SequenceEqual(unlocks), "Selection artwork changed saved unlock availability.");
+            var back = (MegaCrit.Sts2.Core.Nodes.GodotExtensions.NButton)AccessTools.Field(screen.GetType(), "_backButton").GetValue(screen)!;
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(back);
+            Require(!stack.SubmenusOpen || stack.Peek() != screen, "Native Back did not leave character selection.");
+            Checks.Add(new { check = "selection-controls", nativeButton = true, keyboardFocus = true, nativeBack = true, unlockStatePreserved = true });
+        }
+        finally { if (stack.SubmenusOpen && stack.Peek() == screen) stack.Pop(); }
+#else
+        Checks.Add(new { check = "selection-controls", skipped = "No authored selection art; native imagery retained." });
+        await Task.CompletedTask;
+#endif
+    }
+
+#if BUILDER_AUTHORED_SELECTION
+    private static IEnumerable<Node> SelectionNodes(Node root)
+    {
+        foreach (var child in root.GetChildren()) { yield return child; foreach (var nested in SelectionNodes(child)) yield return nested; }
+    }
+    private static void SelectionPixels(Texture2D texture, string asset)
+    {
+        var expected = ModEntry.Texture(asset[7..]);
+        using var pixels = texture.GetImage(); using var original = expected.GetImage();
+        Require(texture.GetInstanceId() == expected.GetInstanceId() && pixels.GetSize() == original.GetSize()
+            && pixels.GetData().SequenceEqual(original.GetData()) && pixels.GetUsedRect().HasArea(), "Selection artwork pixels/cache differ.");
+    }
+#endif

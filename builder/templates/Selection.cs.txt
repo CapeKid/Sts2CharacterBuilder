@@ -1,0 +1,87 @@
+// Generated optional character-selection art. Native inputs and unlocks stay native.
+using System.Runtime.CompilerServices;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Text.Json;
+using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
+
+namespace @NAMESPACE@;
+
+public static partial class ModEntry
+{
+    static partial void InitializeSelection() => CharacterSelection.Initialize();
+}
+
+internal static class CharacterSelection
+{
+    internal static readonly JsonElement Data = JsonDocument.Parse(@SELECTION_JSON@).RootElement.Clone();
+    private static readonly ConditionalWeakTable<NCharacterSelectScreen, TextureRect> Backgrounds = new();
+    private static bool Initialized;
+    internal static void Initialize()
+    {
+        if (Initialized) return;
+        var harmony = new Harmony(@MOD_ID@ + ".selection-art");
+        if (Data.TryGetProperty("portrait", out _) || Data.TryGetProperty("locked_portrait", out _)) {
+            foreach (var method in new[] { "Init", "DebugUnlock", "UnlockIfPossible" })
+                harmony.Patch(AccessTools.Method(typeof(NCharacterSelectButton), method),
+                    postfix: new HarmonyMethod(typeof(CharacterSelection), nameof(Portrait)));
+            harmony.Patch(AccessTools.Method(typeof(NCharacterSelectButton), "LockForAnimation"),
+                postfix: new HarmonyMethod(typeof(CharacterSelection), nameof(LockPortrait)));
+            var animation = AccessTools.Method(typeof(NCharacterSelectButton), "AnimateUnlock");
+            var state = animation.GetCustomAttribute<AsyncStateMachineAttribute>()?.StateMachineType
+                ?? throw new InvalidDataException("Unsupported native unlock animation state machine.");
+            harmony.Patch(AccessTools.Method(state, "MoveNext"),
+                transpiler: new HarmonyMethod(typeof(CharacterSelection), nameof(UnlockArt)));
+        }
+        if (Data.TryGetProperty("background", out _))
+            harmony.Patch(AccessTools.Method(typeof(NCharacterSelectScreen), nameof(NCharacterSelectScreen.SelectCharacter)),
+                postfix: new HarmonyMethod(typeof(CharacterSelection), nameof(Selected)));
+        Initialized = true;
+    }
+    private static void Portrait(NCharacterSelectButton __instance, TextureRect ____icon)
+    {
+        if (__instance.Character is not Character) return;
+        var role = __instance.IsLocked ? "locked_portrait" : "portrait";
+        ____icon.Texture = Data.TryGetProperty(role, out var asset) ? ModEntry.Texture(asset.GetString()![7..])
+            : __instance.IsLocked ? __instance.Character.CharacterSelectLockedIcon : __instance.Character.CharacterSelectIcon;
+    }
+    private static void LockPortrait(NCharacterSelectButton __instance, TextureRect ____icon)
+    {
+        if (__instance.Character is Character)
+            ____icon.Texture = Data.TryGetProperty("locked_portrait", out var asset) ? ModEntry.Texture(asset.GetString()![7..]) : __instance.Character.CharacterSelectLockedIcon;
+    }
+    private static Texture2D UnlockedIcon(CharacterModel character) => character is Character && Data.TryGetProperty("portrait", out var asset)
+        ? ModEntry.Texture(asset.GetString()![7..]) : character.CharacterSelectIcon;
+    private static IEnumerable<CodeInstruction> UnlockArt(IEnumerable<CodeInstruction> instructions)
+    {
+        var getter = AccessTools.PropertyGetter(typeof(CharacterModel), nameof(CharacterModel.CharacterSelectIcon));
+        var replacement = AccessTools.Method(typeof(CharacterSelection), nameof(UnlockedIcon));
+        var count = 0;
+        foreach (var instruction in instructions) {
+            if (instruction.operand is MethodInfo method && method == getter) {
+                instruction.opcode = OpCodes.Call; instruction.operand = replacement; count++;
+            }
+            yield return instruction;
+        }
+        if (count != 1) throw new InvalidDataException("Unsupported native unlock portrait assignment.");
+    }
+    private static void Selected(NCharacterSelectScreen __instance, NCharacterSelectButton __0, CharacterModel __1, Control ____bgContainer)
+    {
+        Backgrounds.Remove(__instance);
+        if (__1 is not Character || __0.IsLocked || __0.IsRandom || !Data.TryGetProperty("background", out var asset)) return;
+        var texture = ModEntry.Texture(asset.GetString()![7..]);
+        var background = new TextureRect { Name = "BuilderSelectionArt", Texture = texture,
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, MouseFilter = Control.MouseFilterEnum.Ignore,
+            FocusMode = Control.FocusModeEnum.None, StretchMode = Data.TryGetProperty("background_fit", out var fit) && fit.GetString() == "contain"
+                ? TextureRect.StretchModeEnum.KeepAspectCentered : TextureRect.StretchModeEnum.KeepAspectCovered };
+        foreach (var native in ____bgContainer.GetChildren().OfType<CanvasItem>()) native.Visible = false;
+        ____bgContainer.AddChild(background);
+        background.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        Backgrounds.Add(__instance, background);
+    }
+    internal static TextureRect? Background(NCharacterSelectScreen screen) => Backgrounds.TryGetValue(screen, out var background)
+        && GodotObject.IsInstanceValid(background) && !background.IsQueuedForDeletion() ? background : null;
+}

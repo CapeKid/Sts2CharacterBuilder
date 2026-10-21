@@ -99,7 +99,7 @@ def native_evidence(toolkit, root):
             or receipt.get('release_dll_sha256') != digest(contained(root, f'build/native/{config["id"]}.dll').read_bytes())):
         raise BuilderError('Native evidence is stale or did not pass; run a fresh lab')
     labels = {check.get('check') for check in receipt.get('checks', [])}
-    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls', 'presentation-controls', 'native-io'}
+    required = {'registration', 'starting-kit', 'starter-trigger', 'resource-turn', 'rewards-shop', 'native-save-resume', 'item-pools', 'event-pools', 'dialogue-controls', 'sprite-integration', 'audio-controls', 'presentation-controls', 'native-io', 'selection-controls'}
     played = [(check.get('card'), check.get('upgraded')) for check in receipt.get('checks', []) if check.get('check') == 'paid-card']
     expected = {(card['id'], upgraded) for card in cards for upgraded in (False, True)}
     if receipt.get('failures') or not required <= labels or set(played) != expected or len(played) != len(expected):
@@ -116,6 +116,12 @@ def native_evidence(toolkit, root):
         expected_items = {row['id'] for row in items[group]}
         if set(actual) != expected_items or len(actual) != len(expected_items):
             raise BuilderError(f'Native evidence does not cover every authored {group}')
+    artwork = [(c.get('group'), c.get('id'), c.get('role'), c.get('asset'))
+               for c in receipt.get('checks', []) if c.get('check') == 'item-art']
+    expected_artwork = {(group, row['id'], role, asset) for group in ('relics', 'potions')
+                        for row in items[group] for role, asset in row.get('art', {}).items()}
+    if set(artwork) != expected_artwork or len(artwork) != len(expected_artwork):
+        raise BuilderError('Native evidence does not cover every item artwork role')
     events = load_events(toolkit, root, config)
     for label in ('authored-event', 'event-leave', 'event-resume'):
         actual = [(check.get('id'), check.get('choice') if label == 'authored-event' else None)
@@ -147,7 +153,7 @@ def native_evidence(toolkit, root):
     if set(actual) != expected_audio or len(actual) != len(expected_audio):
         raise BuilderError('Native evidence does not cover every audio cue')
     presentation = load_presentation(toolkit, root, config)
-    rooms = set(presentation['rooms']) if presentation else set()
+    rooms = set(presentation.get('rooms', {})) if presentation else set()
     actual = [c.get('room') for c in receipt.get('checks', []) if c.get('check') == 'room-presentation']
     if set(actual) != rooms or len(actual) != len(rooms):
         raise BuilderError('Native evidence does not cover every room presentation')
@@ -155,6 +161,11 @@ def native_evidence(toolkit, root):
     expected_resume = {'rest'} if 'rest' in rooms else set()
     if set(resumed) != expected_resume or len(resumed) != len(expected_resume):
         raise BuilderError('Native evidence does not cover presentation resume')
+    selection = presentation.get('selection', {}) if presentation else {}
+    roles = set(selection) - {'background_fit'}
+    actual = [c.get('role') for c in receipt.get('checks', []) if c.get('check') == 'selection-art']
+    if set(actual) != roles or len(actual) != len(roles):
+        raise BuilderError('Native evidence does not cover every selection artwork role')
     return receipt
 
 
@@ -268,13 +279,17 @@ def verify(toolkit, root):
     if config['features']['dialogue'] and not load_dialogue(toolkit, root, config):
         gaps.append('dialogue: enabled without authored data; project-owned extensions require separate native evidence')
     if config['features']['presentation']:
-        gaps.append('presentation: selection/ending/energy/VFX and human room/layout/device review remain separate')
+        gaps.append('presentation: transition/ending/energy/VFX and human selection/room/layout/device review remain separate')
         presentation = load_presentation(toolkit, root, config)
-        omitted = {'rest', 'shop'} - (set(presentation['rooms']) if presentation else set())
+        omitted = {'rest', 'shop'} - (set(presentation.get('rooms', {})) if presentation else set())
         if omitted:
             gaps.append('presentation: native imagery retained for ' + ', '.join(sorted(omitted)))
+        selection = presentation.get('selection', {}) if presentation else {}
+        native_art = {'portrait', 'locked_portrait', 'background'} - set(selection)
+        if native_art:
+            gaps.append('selection: native artwork retained for ' + ', '.join(sorted(native_art)))
     if config['features']['sprites']:
-        gaps.append('sprites: human crop/style review and selection/ending presentation remain separate')
+        gaps.append('sprites: human crop/style review and transition/ending presentation remain separate')
         if not load_sprites(toolkit, root, config):
             gaps.append('sprites: enabled without authored data; project-owned extensions require separate native evidence')
     result = dict(kind='structural', toolkit_commit=lock['toolkit_commit'], input_sha256=input_hash(root),
@@ -342,6 +357,8 @@ def compare_delivery(root, directory):
         if not path.is_file() or digest(path.read_bytes()) != expected:
             raise BuilderError(f'Downloaded delivery differs: {name}')
     expected_paths = set(report['files']) | {report['id'] + '/package-inspection.json'}
+    if contained(directory, report['id'] + '/package-inspection.json').read_bytes() != encoded(report):
+        raise BuilderError('Downloaded package inspection differs')
     actual = {p.relative_to(directory).as_posix() for p in directory.rglob('*') if p.is_file()}
     if actual != expected_paths:
         raise BuilderError('Downloaded delivery has unexpected or missing files')
