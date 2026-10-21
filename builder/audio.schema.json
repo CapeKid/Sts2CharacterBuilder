@@ -115,6 +115,46 @@
               "maximum": 100
             }
           }
+        },
+        "hurt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "asset",
+            "gain_percent"
+          ],
+          "properties": {
+            "asset": {
+              "type": "string",
+              "pattern": "assets/[^\\\\:]+\\.wav",
+              "maxLength": 240
+            },
+            "gain_percent": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        },
+        "victory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "asset",
+            "gain_percent"
+          ],
+          "properties": {
+            "asset": {
+              "type": "string",
+              "pattern": "assets/[^\\\\:]+\\.wav",
+              "maxLength": 240
+            },
+            "gain_percent": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
         }
       }
     }

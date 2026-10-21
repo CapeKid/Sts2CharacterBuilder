@@ -1,5 +1,6 @@
 // Generated optional, short PCM character cues. Native sounds pass through.
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Nodes.Audio;
@@ -7,6 +8,9 @@ using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Animation;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Hooks;
 
 namespace @NAMESPACE@;
 
@@ -29,6 +33,8 @@ internal static class CharacterAudio
     private static readonly Dictionary<string, string> Routes = Cues.EnumerateObject().ToDictionary(r => Uri(r.Name), r => r.Name, StringComparer.Ordinal);
     private static bool Initialized;
     private static bool Watching;
+    private sealed class Victory { internal bool Played; }
+    private static readonly ConditionalWeakTable<ICombatState, Victory> Victories = new();
     private static SceneTree Tree => (SceneTree)Engine.GetMainLoop();
     internal static string Uri(string cue) => "stscb-audio://" + @MOD_ID@ + "/" + cue;
     internal static void Initialize()
@@ -41,7 +47,30 @@ internal static class CharacterAudio
         if (Cues.TryGetProperty("death", out _))
             harmony.Patch(AccessTools.Method(typeof(NCreature), nameof(NCreature.StartDeathAnim)),
                 prefix: new HarmonyMethod(typeof(CharacterAudio), nameof(DeathSound)));
+        if (Cues.TryGetProperty("hurt", out _))
+            harmony.Patch(AccessTools.Method(typeof(Creature), nameof(Creature.LoseHpInternal)),
+                postfix: new HarmonyMethod(typeof(CharacterAudio), nameof(HurtSound)));
+        if (Cues.TryGetProperty("victory", out _))
+            harmony.Patch(AccessTools.Method(typeof(Hook), nameof(Hook.AfterCombatVictory)),
+                prefix: new HarmonyMethod(typeof(CharacterAudio), nameof(VictorySound)));
         Initialized = true;
+    }
+    private static void HurtSound(Creature __instance, DamageResult __result)
+    {
+        // Native generic impact/block SFX remain intact. Add only this character's
+        // configured reaction to nonlethal HP damage in active combat.
+        if (__instance.Player?.Character is Character && __instance.CombatState != null
+            && CombatManager.Instance.IsInProgress && !CombatManager.Instance.IsOverOrEnding
+            && __result.UnblockedDamage > 0 && !__result.WasTargetKilled && __instance.IsAlive)
+            SfxCmd.Play(Uri("hurt"));
+    }
+    private static void VictorySound(ICombatState __1)
+    {
+        if (!__1.PlayerCreatures.Any(c => c.Player?.Character is Character && c.IsAlive)) return;
+        var victory = Victories.GetValue(__1, _ => new Victory());
+        if (victory.Played) return;
+        victory.Played = true;
+        SfxCmd.Play(Uri("victory"));
     }
     private static void DeathSound(NCreature __instance, CreatureAnimator? ____spineAnimator)
     {
