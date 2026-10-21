@@ -1187,6 +1187,15 @@ class ToolkitTests(unittest.TestCase):
         publish()
         with self.assertRaisesRegex(BuilderError, 'exact authored reward pool'):
             native_evidence(self.toolkit, self.project)
+        for mutation in ('wrong-card', 'wrong-count', 'wrong-mode'):
+            receipt['checks'] = copy.deepcopy(checks)
+            pool = next(c for c in receipt['checks'] if c.get('check') == 'reward-pool')
+            if mutation == 'wrong-card': pool['cards'][0] = 'ForeignCard'
+            elif mutation == 'wrong-count': pool['count'] += 1
+            else: pool['custom'] = False
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'exact authored reward pool'):
+                native_evidence(self.toolkit, self.project)
         receipt['checks'] = copy.deepcopy(checks)
         next(c for c in receipt['checks'] if c.get('check') == 'native-save-resume')['rewardCells'] = []
         publish()
@@ -1350,6 +1359,32 @@ public static partial class ModEntry
         self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
         self.assertTrue((self.project / 'src/Generated/Selection.cs').exists())
 
+
+
+class RecordedExampleTests(unittest.TestCase):
+    def test_full_pool_receipt_matches_original_design_and_all_outcomes(self):
+        # Check the published historical receipt's integrity; this never executes native gameplay.
+        cards = read_json(REPO / 'builder/examples/steady-path/cards.json')
+        receipt = read_json(REPO / 'docs/full-pool-native-fixture.json')
+        self.assertEqual(receipt['sample']['canonical_json_sha256'], digest(encoded(cards)))
+        outcomes = receipt['paid_card_outcomes']
+        self.assertEqual(len(outcomes), len(cards) * 2)
+        self.assertEqual({(c['card'], c['upgraded']) for c in outcomes}, {(c['id'], u) for c in cards for u in (False, True)})
+        by_id = {c['id']: c for c in cards}
+        for outcome in outcomes:
+            card = by_id[outcome['card']]
+            values = card['upgrade' if outcome['upgraded'] else 'base']
+            for expected, actual in [('cost', 'energy'), ('energy', 'energyGain'), ('damage', 'damage'),
+                                     ('block', 'block'), ('draw', 'draw'), ('focus', 'focus')]:
+                self.assertEqual(outcome[actual], values[expected], (card['id'], outcome['upgraded'], actual))
+            self.assertEqual(outcome['pile'], 'None' if card['type'] == 'Power' else 'Exhaust' if card['exhaust'] else 'Discard')
+            self.assertTrue(outcome['cardSaveRoundTrip'] and outcome['textVerified'])
+        reward = [c for c in cards if c['rarity'] != 'Basic']
+        self.assertEqual(sorted(receipt['exact_reward_pool']['cards']), sorted(c['id'] for c in reward))
+        self.assertEqual(set(receipt['saved_reward_cells']), {c['rarity'] + '/' + c['type'] for c in reward})
+        self.assertEqual(receipt['executed_check_count'] + receipt['skipped_sentinel_count'], receipt['check_count'])
+        self.assertTrue(receipt['parity']['matches'])
+        self.assertFalse(receipt['release_ready'] or receipt['uploaded'])
 
 
 if __name__ == '__main__':

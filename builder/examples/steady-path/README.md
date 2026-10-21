@@ -1,6 +1,6 @@
 # Steady Path: original numeric full-pool example
 
-This original MIT-licensed sample shows a complete reward-count design within the builder's supported numeric vocabulary. It preserves the eight bootstrap cards byte-for-value and adds 80 individually named designs: **85 reward cards plus three basics**. It is an optional authoring reference, not the default for every character and not a balance-certified release.
+This original MIT-licensed sample shows a complete reward-count design within the builder's supported numeric vocabulary. It preserves all eight bootstrap card definitions and adds 80 individually named designs: **85 reward cards plus three basics**. It is an optional authoring reference, not the default for every character and not a balance-certified release.
 
 The concept is a patient traveler who combines lasting defense, preparation and decisive attacks. These are ordinary run-local combat mechanics. The custom **Focus** here grants Block at turn end; it is not the native orb mechanic.
 
