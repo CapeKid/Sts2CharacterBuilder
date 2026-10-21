@@ -357,6 +357,8 @@ def compare_delivery(root, directory):
         if not path.is_file() or digest(path.read_bytes()) != expected:
             raise BuilderError(f'Downloaded delivery differs: {name}')
     expected_paths = set(report['files']) | {report['id'] + '/package-inspection.json'}
+    if contained(directory, report['id'] + '/package-inspection.json').read_bytes() != encoded(report):
+        raise BuilderError('Downloaded package inspection differs')
     actual = {p.relative_to(directory).as_posix() for p in directory.rglob('*') if p.is_file()}
     if actual != expected_paths:
         raise BuilderError('Downloaded delivery has unexpected or missing files')
