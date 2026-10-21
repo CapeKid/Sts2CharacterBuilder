@@ -1,9 +1,9 @@
 """Project bootstrap and ownership-aware generation. No game content is copied."""
 import os
 import json
-import shutil
 import subprocess
 import tempfile
+import time
 import re
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -72,6 +72,24 @@ def placeholder(kind, color):
             f'<text x="50%" y="85%" text-anchor="middle" fill="white" font-size="20">PLACEHOLDER</text></svg>\n').encode()
 
 
+def finish_bootstrap(temporary, target):
+    parent = target.parent.resolve()
+    if temporary.resolve().parent != parent or not temporary.name.startswith('.character-init-'):
+        raise BuilderError('Bootstrap move must stay beside its selected destination')
+    for attempt in range(21):
+        if target.exists() or target.is_symlink():
+            raise BuilderError('Project destination appeared during bootstrap; existing work is preserved')
+        try:
+            os.replace(temporary, target)
+            return
+        except PermissionError:
+            if os.name != 'nt' or attempt == 20:
+                raise
+            # A Windows scanner/Git handle may briefly deny a completed clone's
+            # directory rename. Never remove files or replace an existing target.
+            time.sleep(0.1)
+
+
 def bootstrap(toolkit, target, args):
     target = target.absolute()
     if target.exists():
@@ -129,10 +147,11 @@ def bootstrap(toolkit, target, args):
         (temporary / 'src/Extensions').mkdir(parents=True)
         generate(toolkit, temporary)
         run(['git', 'add', '.'], temporary)
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
+        finish_bootstrap(temporary, target)
+    except Exception as error:
+        # A cloned Git object can be read-only on Windows. Cleanup must not
+        # replace the original failure or erase useful partial work.
+        raise BuilderError(f'Bootstrap failed; partial files retained at {temporary}: {error}') from error
     return dict(project=str(target), toolkit_commit=commit, status='prototype', next='resume')
 
 

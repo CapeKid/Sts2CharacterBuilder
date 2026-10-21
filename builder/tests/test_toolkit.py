@@ -379,6 +379,46 @@ class ToolkitTests(unittest.TestCase):
         generate(clone / 'tools/character-builder', clone, freeze=True)
         generate(clone / 'tools/character-builder', clone, check=True)
 
+    def test_bootstrap_failure_keeps_partial_work(self):
+        target = self.project.parent / 'Failed character'
+        args = argparse.Namespace(id='FailedCharacter', name='Failed Character', idea='Failure fixture', author='Fixture',
+                                  mode='guided', toolkit_source=str(self.source), toolkit_commit=self.commit)
+        def fail_generation(toolkit, temporary):
+            evidence = temporary / 'read-only-partial.txt'
+            evidence.write_bytes(b'Preserve this partial work')
+            evidence.chmod(0o400)
+            raise BuilderError('Original generation failure')
+        with patch('builder.project.generate', side_effect=fail_generation):
+            with self.assertRaisesRegex(BuilderError, 'partial files retained.*Original generation failure') as raised:
+                bootstrap(self.toolkit, target, args)
+        self.assertIsInstance(raised.exception.__cause__, BuilderError)
+        self.assertFalse(target.exists())
+        partials = list(target.parent.glob('.character-init-*'))
+        self.assertEqual(len(partials), 1)
+        self.assertEqual((partials[0] / 'read-only-partial.txt').read_bytes(), b'Preserve this partial work')
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows directory-handle retry')
+    def test_bootstrap_retries_directory_lock(self):
+        from builder.project import finish_bootstrap
+        temporary = self.project.parent / '.character-init-lock'
+        target = self.project.parent / 'Completed character'
+        temporary.mkdir()
+        (temporary / 'file.txt').write_bytes(b'Original checkout')
+        replace = os.replace
+        attempts = []
+        def locked_move(source, destination):
+            attempts.append(1)
+            if len(attempts) <= 2: raise PermissionError('Windows directory handle is busy')
+            replace(source, destination)
+        with patch('builder.project.os.replace', side_effect=locked_move), patch('builder.project.time.sleep') as wait:
+            finish_bootstrap(temporary, target)
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual(wait.call_count, 2)
+        self.assertEqual((target / 'file.txt').read_bytes(), b'Original checkout')
+        temporary.mkdir()
+        with self.assertRaisesRegex(BuilderError, 'existing work is preserved'): finish_bootstrap(temporary, target)
+        self.assertTrue(temporary.exists())
+
     def test_existing_destination_preserved(self):
         sentinel = self.project / 'sentinel'
         sentinel.write_text('keep')
