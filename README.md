@@ -15,6 +15,7 @@ The initial eight-card design is a prototype, not an automatically completed nat
 `prepare-lab` and `test-native` provide opt-in isolated gameplay checks using an independent copy of an owned game and a dedicated save backend. The test-only probe is excluded from normal builds/packages. A local v0.111.0 fixture passed 107 native checks, including extra Energy/AoE cases, per-card portrait loading, authored relic/potion artwork and lifecycles, event/checkpoint cases, Ancient conversations, locale reloads, combat sprite states, Fairy in a Bottle recovery, short character sound routing/mute/cleanup, independent rest/shop action/reconstruction, Windows progress-reader lock controls and native selection portrait/unlock/background/navigation checks; see [native verification](builder/NATIVE-TESTING.md) for coverage and remaining limits. `balance --comparator CHARACTER.IRONCLAD` uses a passing current lab's native rarity/type counts rather than a hardcoded full-pool target.
 
 - [Full card-pool planning](builder/CARD-POOLS.md)
+- [Original 85-reward-card sample](builder/examples/steady-path/README.md)
 - [Design and extraction plan](docs/character-builder-design.md)
 - [Implementation issue](https://github.com/CapeKid/Sts2CharacterBuilder/issues/1)
 - [Spire Legacy reference documentation](SPIRE_LEGACY_REFERENCE.md)
@@ -23,6 +24,8 @@ The initial eight-card design is a prototype, not an automatically completed nat
 The scope is conventional standalone characters, guided and expedited authoring, modular skills and verification tools. Cross-run progression, heirs, inheritance, manor upgrades and crowns are permanently excluded.
 
 Independent fresh-clone and custom-content-disabled characters also passed native numeric/save-resume and package checks; [their receipts](docs/independent-character-fixtures.json) separate executed records from skipped-feature sentinels. Human/device/live-delivery gates remain open.
+
+The optional Steady Path sample preserves the bootstrap cards and adds 80 original designs around defense, draw/Energy preparation and attacks. Its 85 reward cards match the observed v0.111.0 Ironclad rarity/type cells. A fresh full-pool native lab passed 360 executed checks plus seven omitted-feature sentinels, including every card in both upgrade states and a 26-card deck saved/resumed with reward representatives; see [the receipt](docs/full-pool-native-fixture.json). Placeholder art, 25 heuristic balance warnings and unperformed human/campaign review remain explicit.
 
 `prepare-publish` and `check-publish` prepare an offline private workspace using a hash-pinned Mega Crit uploader archive and exact staged payload. They preserve explicit update identity and never upload; see [publishing](builder/PUBLISHING.md). Live Workshop creation/update and authenticated download verification remain completion gates.
 

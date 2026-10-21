@@ -251,10 +251,12 @@ internal static class NativeProbe
         var guard = ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.DefendIronclad>();
         for (var i = 0; i < 20; i++) await CardPileCmd.Add(combat.CreateCard(guard, player), PileType.Draw, skipVisuals: true);
         var key = row.GetProperty("id").GetString()!;
-        var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Card_" + key, true)!;
-        var canonical = ModelDb.GetById<CardModel>(ModelDb.GetId(type));
+        var canonical = AuthoredCard(row);
         Require(ModelDb.AllCards.Contains(canonical), "Card is absent from compendium registry.");
         var card = combat.CreateCard(canonical, player);
+        Require(card.Type.ToString() == row.GetProperty("type").GetString()
+            && card.Rarity.ToString() == row.GetProperty("rarity").GetString()
+            && card.TargetType.ToString() == row.GetProperty("target").GetString(), "Card type/rarity/target differs from its design.");
         if (upgraded) CardCmd.Upgrade(card);
         Portrait(row, card, upgraded);
         await CardPileCmd.Add(card, PileType.Hand, skipVisuals: true);
@@ -328,10 +330,24 @@ internal static class NativeProbe
         Checks.Add(new { check = "resource-turn", hookBlock = 3, nativeTurnAdvanced = true, preserved = true });
     }
 
+    private static CardModel AuthoredCard(JsonElement row)
+    {
+        var type = typeof(ModEntry).Assembly.GetType(typeof(ModEntry).Namespace + ".Card_" + row.GetProperty("id").GetString(), true)!;
+        return ModelDb.GetById<CardModel>(ModelDb.GetId(type));
+    }
+
+    private static JsonElement[] RewardRows() => Request.GetProperty("cards").EnumerateArray()
+        .Where(r => r.GetProperty("rarity").GetString() is "Common" or "Uncommon" or "Rare").ToArray();
+
     private static void RewardsAndShop()
     {
         var player = Run.Players.Single();
         var allowed = player.Character.CardPool.GetUnlockedCards(player.UnlockState, player.RunState.CardMultiplayerConstraint).Where(c => c.Rarity is CardRarity.Common or CardRarity.Uncommon or CardRarity.Rare).Select(c => c.Id).ToHashSet();
+        var rows = RewardRows();
+        var custom = Request.GetProperty("cards").GetArrayLength() > 0;
+        if (custom) Require(allowed.SetEquals(rows.Select(r => AuthoredCard(r).Id)), "Unlocked native reward pool does not exactly match the authored reward cards.");
+        Checks.Add(new { check = "reward-pool", custom, count = allowed.Count,
+            cards = rows.Select(r => r.GetProperty("id").GetString()).ToArray() });
         var count = Math.Min(3, allowed.Count);
         Require(count > 0, "No reward pool.");
         var reward = new CardReward(CardCreationOptions.ForRoom(player, RoomType.Monster), count, player); reward.Populate();
@@ -345,13 +361,20 @@ internal static class NativeProbe
 
     private static async Task SaveResume()
     {
+        // Save a normal noncombat room; mid-combat persistence is not a native promise.
+        await RunManager.Instance.EnterRoomDebug(RoomType.RestSite, showTransition: false);
+        var player = Run.Players.Single();
+        var cells = RewardRows().GroupBy(r => r.GetProperty("rarity").GetString() + "/" + r.GetProperty("type").GetString()).ToArray();
+        foreach (var cell in cells) foreach (var upgraded in new[] { false, true }) {
+            var card = Run.CreateCard(AuthoredCard(cell.First()), player);
+            if (upgraded) CardCmd.Upgrade(card);
+            await CardPileCmd.Add(card, PileType.Deck, skipVisuals: true);
+        }
         var first = Run.Players.Single().Deck.Cards.First();
         if (first.IsUpgradable) CardCmd.Upgrade(first);
         var ids = Run.Players.Single().Deck.Cards.Select(c => c.Id.ToString() + ":" + c.CurrentUpgradeLevel).ToArray();
         var relicIds = Run.Players.Single().Relics.Select(r => r.Id.ToString()).ToArray();
         var potionIds = Run.Players.Single().PotionSlots.Select(p => p?.Id.ToString()).ToArray();
-        // Save a normal noncombat room; mid-combat persistence is not a native promise.
-        await RunManager.Instance.EnterRoomDebug(RoomType.RestSite, showTransition: false);
         await SaveManager.Instance.SaveRun(null);
         await NGame.Instance!.ReturnToMainMenu();
         var save = SaveManager.Instance.LoadRunSave();
@@ -373,7 +396,8 @@ internal static class NativeProbe
         Checks.Add(new { check = "sprite-resume", atlas = CharacterSprites.Data.GetProperty("atlas").GetString(), idleAfterLoad = true });
 #endif
         if (Request.GetProperty("focus_starter").GetBoolean()) Require(focus?.Amount == 1, "Resource failed to reset at the next combat.");
-        Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids, relics = relicIds, potions = potionIds, nextCombatFocus = focus?.Amount ?? 0 });
+        Checks.Add(new { check = "native-save-resume", character = Run.Players.Single().Character.Id.ToString(), deck = ids,
+            rewardCells = cells.Select(c => c.Key).ToArray(), relics = relicIds, potions = potionIds, nextCombatFocus = focus?.Amount ?? 0 });
     }
 
 @ITEM_PROBE@

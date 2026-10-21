@@ -14,7 +14,7 @@ import zipfile
 import zlib
 
 from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
-from builder.project import atomic, bootstrap, generate, run
+from builder.project import atomic, bootstrap, generate, run, starter_cards
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, verify
 from builder.publishing import check_publish, prepare_publish, publication
 from builder.card_pool import BASELINE, plan_cards
@@ -731,6 +731,9 @@ class ToolkitTests(unittest.TestCase):
         checks += [dict(check='paid-card', card=c['id'], upgraded=u) for c in cards for u in (False, True)]
         checks += [dict(check='card-portrait', card=c['id'], upgraded=u, asset=c.get('portrait', 'assets/card.svg'))
                    for c in cards for u in (False, True)]
+        reward = [c for c in cards if c['rarity'] != 'Basic']
+        checks.insert(0, dict(check='reward-pool', custom=True, count=len(reward), cards=[c['id'] for c in reward]))
+        next(c for c in checks if c['check'] == 'native-save-resume')['rewardCells'] = sorted({c['rarity'] + '/' + c['type'] for c in reward})
         if native is None:
             native = [dict(type='Attack', rarity='Common')] * 3 + [dict(type='Skill', rarity='Uncommon')] * 2
         receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=checks,
@@ -855,6 +858,26 @@ class ToolkitTests(unittest.TestCase):
         self.assertFalse(report['distribution_matches'])
         self.assertEqual(report['deficits'], {'Rare/Power': 1})
         self.assertEqual(report['excess'], {'Common/Power': 1})
+
+    def test_original_steady_path_pool_preserves_basics_and_generates(self):
+        cards = read_json(self.toolkit / 'builder/examples/steady-path/cards.json')
+        self.assertEqual(cards[:8], starter_cards())
+        atomic(self.project / 'design/cards.json', encoded(cards))
+        generate(self.toolkit, self.project)
+        generated = (self.project / 'src/Generated/Character.cs').read_text()
+        self.assertEqual(len(cards), 88)
+        self.assertEqual(generated.count('public sealed class Card_'), 88)
+        report = balance(self.toolkit, self.project)
+        self.assertEqual(report['reward_cards'], 85)
+        self.assertTrue(report['merchant_coverage']['adequate'])
+        native = [dict(type=c['type'], rarity=c['rarity']) for c in cards if c['rarity'] != 'Basic']
+        self.mock_pool_evidence(native)
+        plan = plan_cards(self.toolkit, self.project, 'CHARACTER.FIXTURE')
+        self.assertEqual(plan['identical_mechanics'], [])
+        self.assertTrue(plan['distribution_matches'])
+        self.assertEqual(plan['basic_cards'], ['Strike', 'Guard', 'Practice'])
+        # Structural and synthetic evidence remain distinct from the owned-game receipt.
+        self.assertEqual(plan['kind'], 'planning')
 
     def test_closed_deterministic_package_and_stale_build(self):
         self.mock_build()
@@ -1143,6 +1166,9 @@ class ToolkitTests(unittest.TestCase):
         checks += [dict(check=label, id=event['id']) for event in authored_events() for label in ('event-leave', 'event-resume')]
         checks += [dict(check=label, ancient=r['ancient'], visit=r['visit']) for r in authored_dialogue()
                    for label in ('authored-dialogue', 'dialogue-resume')]
+        reward = [c for c in cards if c['rarity'] != 'Basic']
+        checks.insert(0, dict(check='reward-pool', custom=True, count=len(reward), cards=[c['id'] for c in reward]))
+        next(c for c in checks if c['check'] == 'native-save-resume')['rewardCells'] = sorted({c['rarity'] + '/' + c['type'] for c in reward})
         receipt = dict(kind='native', ok=True, process_exit=0, failures=[], checks=list(checks),
                        input_sha256=input_hash(self.project), source_sha256=source_hash(self.project),
                        toolkit_commit=self.commit, release_dll_sha256=digest(b'fixture DLL bytes'), game={'version': 'fixture'},
@@ -1157,6 +1183,25 @@ class ToolkitTests(unittest.TestCase):
         parity = balance(self.toolkit, self.project, 'CHARACTER.FIXTURE')['native_parity']
         self.assertEqual(parity['expected'], 3)
         self.assertEqual(parity['deficits'], {'Common/Attack': 1})
+        receipt['checks'] = [c for c in checks if c.get('check') != 'reward-pool']
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'exact authored reward pool'):
+            native_evidence(self.toolkit, self.project)
+        for mutation in ('wrong-card', 'wrong-count', 'wrong-mode'):
+            receipt['checks'] = copy.deepcopy(checks)
+            pool = next(c for c in receipt['checks'] if c.get('check') == 'reward-pool')
+            if mutation == 'wrong-card': pool['cards'][0] = 'ForeignCard'
+            elif mutation == 'wrong-count': pool['count'] += 1
+            else: pool['custom'] = False
+            publish()
+            with self.assertRaisesRegex(BuilderError, 'exact authored reward pool'):
+                native_evidence(self.toolkit, self.project)
+        receipt['checks'] = copy.deepcopy(checks)
+        next(c for c in receipt['checks'] if c.get('check') == 'native-save-resume')['rewardCells'] = []
+        publish()
+        with self.assertRaisesRegex(BuilderError, 'saved base/upgraded reward cells'):
+            native_evidence(self.toolkit, self.project)
+        receipt['checks'] = list(checks)
         receipt['checks'].pop()
         publish()
         with self.assertRaisesRegex(BuilderError, 'cover'):
@@ -1284,6 +1329,12 @@ public static partial class ModEntry
              '-p:BuilderNativeTests=true', '-p:BuilderProbeSource=' + str(self.project / 'private/NativeProbe.cs')], self.project)
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
+    def test_native_compile_full_original_pool(self):
+        atomic(self.project / 'design/cards.json', (self.toolkit / 'builder/examples/steady-path/cards.json').read_bytes())
+        generate(self.toolkit, self.project)
+        build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])
+
+    @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_items_without_focus_or_cards(self):
         self.add_selection()
         self.add_presentation()
@@ -1308,6 +1359,32 @@ public static partial class ModEntry
         self.assertFalse((self.project / 'src/Generated/Presentation.cs').exists())
         self.assertTrue((self.project / 'src/Generated/Selection.cs').exists())
 
+
+
+class RecordedExampleTests(unittest.TestCase):
+    def test_full_pool_receipt_matches_original_design_and_all_outcomes(self):
+        # Check the published historical receipt's integrity; this never executes native gameplay.
+        cards = read_json(REPO / 'builder/examples/steady-path/cards.json')
+        receipt = read_json(REPO / 'docs/full-pool-native-fixture.json')
+        self.assertEqual(receipt['sample']['canonical_json_sha256'], digest(encoded(cards)))
+        outcomes = receipt['paid_card_outcomes']
+        self.assertEqual(len(outcomes), len(cards) * 2)
+        self.assertEqual({(c['card'], c['upgraded']) for c in outcomes}, {(c['id'], u) for c in cards for u in (False, True)})
+        by_id = {c['id']: c for c in cards}
+        for outcome in outcomes:
+            card = by_id[outcome['card']]
+            values = card['upgrade' if outcome['upgraded'] else 'base']
+            for expected, actual in [('cost', 'energy'), ('energy', 'energyGain'), ('damage', 'damage'),
+                                     ('block', 'block'), ('draw', 'draw'), ('focus', 'focus')]:
+                self.assertEqual(outcome[actual], values[expected], (card['id'], outcome['upgraded'], actual))
+            self.assertEqual(outcome['pile'], 'None' if card['type'] == 'Power' else 'Exhaust' if card['exhaust'] else 'Discard')
+            self.assertTrue(outcome['cardSaveRoundTrip'] and outcome['textVerified'])
+        reward = [c for c in cards if c['rarity'] != 'Basic']
+        self.assertEqual(sorted(receipt['exact_reward_pool']['cards']), sorted(c['id'] for c in reward))
+        self.assertEqual(set(receipt['saved_reward_cells']), {c['rarity'] + '/' + c['type'] for c in reward})
+        self.assertEqual(receipt['executed_check_count'] + receipt['skipped_sentinel_count'], receipt['check_count'])
+        self.assertTrue(receipt['parity']['matches'])
+        self.assertFalse(receipt['release_ready'] or receipt['uploaded'])
 
 
 if __name__ == '__main__':
