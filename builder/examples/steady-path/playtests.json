@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "PatientDefense",
+      "seed": "STEADY-PATIENTDEFENSE",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 4,
+      "max_plays": 24,
+      "deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Practice",
+          "upgraded": false
+        },
+        {
+          "card": "QuietPractice",
+          "upgraded": false
+        },
+        {
+          "card": "Unhurried",
+          "upgraded": false
+        },
+        {
+          "card": "SettledMind",
+          "upgraded": false
+        },
+        {
+          "card": "Fortify",
+          "upgraded": false
+        },
+        {
+          "card": "GuardedStep",
+          "upgraded": false
+        },
+        {
+          "card": "LongStride",
+          "upgraded": true
+        },
+        {
+          "card": "Breathe",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "SettledMind",
+        "Practice",
+        "QuietPractice",
+        "Fortify",
+        "Unhurried",
+        "Guard",
+        "Breathe",
+        "GuardedStep",
+        "LongStride",
+        "Strike"
+      ]
+    },
+    {
+      "id": "TravelingLight",
+      "seed": "STEADY-TRAVELINGLIGHT",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 4,
+      "max_plays": 24,
+      "deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "QuickRead",
+          "upgraded": false
+        },
+        {
+          "card": "ScoutAhead",
+          "upgraded": false
+        },
+        {
+          "card": "Survey",
+          "upgraded": false
+        },
+        {
+          "card": "TrailRations",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "TravelNotes",
+          "upgraded": false
+        },
+        {
+          "card": "Lunge",
+          "upgraded": false
+        },
+        {
+          "card": "ExpeditionPlan",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "TrailRations",
+        "ExpeditionPlan",
+        "TravelNotes",
+        "Survey",
+        "QuickRead",
+        "ScoutAhead",
+        "PassingTap",
+        "Lunge",
+        "Strike",
+        "Guard"
+      ]
+    },
+    {
+      "id": "ClearTheTrail",
+      "seed": "STEADY-CLEARTHETRAIL",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 4,
+      "max_plays": 24,
+      "deck": [
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Strike",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "TrailSweep",
+          "upgraded": false
+        },
+        {
+          "card": "ClearTheTrail",
+          "upgraded": false
+        },
+        {
+          "card": "ShelteringArc",
+          "upgraded": false
+        },
+        {
+          "card": "BracedSwing",
+          "upgraded": false
+        },
+        {
+          "card": "SafeShortcut",
+          "upgraded": false
+        },
+        {
+          "card": "WanderersCalm",
+          "upgraded": false
+        },
+        {
+          "card": "Breathe",
+          "upgraded": false
+        },
+        {
+          "card": "CircleCut",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "WanderersCalm",
+        "SafeShortcut",
+        "ClearTheTrail",
+        "TrailSweep",
+        "ShelteringArc",
+        "CircleCut",
+        "BracedSwing",
+        "Strike",
+        "Guard",
+        "Breathe"
+      ]
+    },
+    {
+      "id": "PlayCapControl",
+      "seed": "STEADY-PLAYCAPCONTROL",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 1,
+      "max_plays": 1,
+      "deck": [
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        },
+        {
+          "card": "PassingTap",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "PassingTap"
+      ]
+    },
+    {
+      "id": "TurnCapControl",
+      "seed": "STEADY-TURNCAPCONTROL",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 1,
+      "max_plays": 8,
+      "deck": [
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        },
+        {
+          "card": "Guard",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "Guard"
+      ]
+    },
+    {
+      "id": "NoOffenseControl",
+      "seed": "STEADY-NOOFFENSECONTROL",
+      "encounter": "NibbitsNormal",
+      "ascension": 0,
+      "policy": "priority-lowest-hp",
+      "max_turns": 8,
+      "max_plays": 8,
+      "deck": [
+        {
+          "card": "TrailRations",
+          "upgraded": false
+        }
+      ],
+      "priority": [
+        "TrailRations"
+      ]
+    }
+  ]
+}

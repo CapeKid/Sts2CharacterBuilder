@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_presentation, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -114,6 +114,7 @@ def native_evidence(toolkit, root):
     cells = {c['rarity'] + '/' + c['type'] for c in reward}
     if len(saved) != 1 or set(saved[0].get('rewardCells', [])) != cells or len(saved[0].get('rewardCells', [])) != len(cells):
         raise BuilderError('Native evidence does not cover saved base/upgraded reward cells')
+    validate_playtest_evidence(load_playtests(toolkit, root, config, cards), receipt['checks'])
     portraits = [(check.get('card'), check.get('upgraded'), check.get('asset')) for check in receipt.get('checks', [])
                  if check.get('check') == 'card-portrait']
     expected_portraits = {(card['id'], upgraded, card.get('portrait', 'assets/card.svg'))
@@ -179,6 +180,52 @@ def native_evidence(toolkit, root):
     return receipt
 
 
+def validate_playtest_evidence(plan, checks):
+    trials = [c for c in checks if c.get('check') == 'archetype-playtest']
+    by_id = {c.get('scenario', {}).get('id'): c for c in trials}
+    if len(by_id) != len(trials) or set(by_id) != {r['id'] for r in plan}:
+        raise BuilderError('Native evidence does not cover every declared archetype playtest exactly once')
+    for row in plan:
+        trial = by_id[row['id']]
+        if (trial.get('scenario') != row or trial.get('native_resources_unmodified') is not True
+                or trial.get('campaign') is not False or trial.get('human_balance') is not False
+                or trial.get('outcome') not in ('victory', 'defeat', 'turn-cap', 'play-cap')):
+            raise BuilderError('Archetype playtest scenario/outcome contract differs')
+        declared = sorted((c['card'], c['upgraded']) for c in row['deck'])
+        started = trial.get('starting_deck', [])
+        if (any(not isinstance(c, dict) or type(c.get('upgraded')) is not bool or not isinstance(c.get('card'), str) for c in started)
+                or sorted((c['card'], c['upgraded']) for c in started) != declared):
+            raise BuilderError('Archetype playtest starting deck/upgrades differ')
+        turns, plays = trial.get('turns', []), trial.get('plays', [])
+        if (not 1 <= len(turns) <= row['max_turns'] or len(plays) > row['max_plays']
+                or trial.get('play_count') != len(plays)
+                or [t.get('turn') for t in turns] != list(range(1, len(turns) + 1))
+                or any(p.get('turn') not in range(1, len(turns) + 1) or p.get('card') not in row['priority'] for p in plays)
+                or any(t.get('plays') != sum(p['turn'] == t['turn'] for p in plays) for t in turns)
+                or (trial['outcome'] == 'turn-cap' and len(turns) != row['max_turns'])
+                or (trial['outcome'] == 'play-cap' and len(plays) != row['max_plays'])):
+            raise BuilderError('Archetype playtest turn/play coverage or cap differs')
+        snapshots = [trial.get('start'), trial.get('final')]
+        snapshots += [t.get(k) for t in turns for k in ('before', 'after')]
+        snapshots += [p.get('after') for p in plays]
+        for snapshot in snapshots:
+            if (not isinstance(snapshot, dict) or not isinstance(snapshot.get('enemy_hp'), list) or not snapshot['enemy_hp']
+                    or any(type(snapshot.get(k)) not in (int, float) or snapshot[k] < 0 for k in ('player_hp', 'block', 'energy', 'focus'))
+                    or any(type(hp) not in (int, float) or hp < 0 for hp in snapshot['enemy_hp'])):
+                raise BuilderError('Archetype playtest lacks numeric native resource observations')
+        foe_count = len(trial['start']['enemy_hp'])
+        allowed = {(c['card'], c['upgraded']) for c in row['deck']}
+        if (any(len(s['enemy_hp']) != foe_count for s in snapshots)
+                or any(type(p.get('upgraded')) is not bool or (p['card'], p['upgraded']) not in allowed
+                       or type(p.get('target_slot')) is not int or not -1 <= p['target_slot'] < foe_count for p in plays)):
+            raise BuilderError('Archetype playtest action/target observations differ from the declared deck')
+        final = trial['final']
+        if ((trial['outcome'] == 'defeat' and final['player_hp'] != 0)
+                or (trial['outcome'] == 'victory' and (final['player_hp'] <= 0 or any(final['enemy_hp'])))
+                or (trial['outcome'].endswith('-cap') and (final['player_hp'] <= 0 or not any(final['enemy_hp'])))):
+            raise BuilderError('Archetype playtest outcome does not match final native HP')
+
+
 def balance(toolkit, root, comparator=None):
     config, cards, _, _ = validate(toolkit, root)
     findings = []
@@ -211,6 +258,16 @@ def balance(toolkit, root, comparator=None):
     merchant_counts = {kind: sum(c['type'] == kind for c in reward) for kind in ('Attack', 'Skill', 'Power')}
     report['merchant_coverage'] = dict(actual=merchant_counts, minimum=dict(Attack=2, Skill=2, Power=1),
                                      adequate=all(merchant_counts[kind] >= minimum for kind, minimum in [('Attack', 2), ('Skill', 2), ('Power', 1)]))
+    plan = load_playtests(toolkit, root, config, cards)
+    if plan:
+        report['playtests'] = dict(kind='bounded-scripted-combat', status='unperformed', requested=len(plan),
+                                  campaign=False, human_balance=False)
+        try:
+            trials = native_evidence(toolkit, root)
+            if trials is not None:
+                report['playtests'].update(status='recorded', observations=[c for c in trials['checks'] if c.get('check') == 'archetype-playtest'])
+        except BuilderError as error:
+            report['playtests'].update(status='stale', reason=str(error))
     if comparator:
         evidence = native_evidence(toolkit, root)
         if evidence is None:

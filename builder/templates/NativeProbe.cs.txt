@@ -215,6 +215,7 @@ internal static class NativeProbe
             Progress("save-resume");
             await ItemsForSave();
             await SaveResume();
+            await ArchetypePlaytests();
         } catch (Exception error) { Failures.Add(error.ToString()); }
         Write("result.json", new {
             kind = "native", ok = Failures.Count == 0, token = Request.GetProperty("token").GetString(),
@@ -407,5 +408,6 @@ internal static class NativeProbe
 @AUDIO_PROBE@
 @PRESENTATION_PROBE@
 @SELECTION_PROBE@
+@PLAYTEST_PROBE@
 }
 #endif
