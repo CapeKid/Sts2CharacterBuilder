@@ -38,3 +38,5 @@ Combat atlases can use [sprite data](SPRITES.md) without a handwritten factory. 
 Short character effects can use [audio data](AUDIO.md). Generated Audio.cs owns only configured select/transition/attack/cast/death getters and the reserved `ModEntry.InitializeAudio` partial method. Use extensions for other routes; do not replace a generated getter or add a second broad audio interceptor.
 
 Generated room presentation owns rest/shop body replacement only where configured, plus the reserved `ModEntry.InitializePresentation` partial method. Do not install a second room-body replacer for the same scenes. Native inputs, thought bubbles, healing, merchant transactions and saves remain native; human layout/device and co-op campaign evidence are still required.
+
+Selection portraits/backgrounds can use the [presentation contract](PRESENTATION.md). Generated Selection.cs owns only configured character art and the reserved `ModEntry.InitializeSelection` partial method. Do not install another portrait/background replacer for the same selector. Native locks, focus and Back behavior remain native. Run-start transitions and ending art require separate extensions and evidence.

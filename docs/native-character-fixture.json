@@ -9,13 +9,13 @@
     "main_assembly_hash": 222455745
   },
   "target": "public-beta",
-  "input_sha256": "7e3c6c93a01e8d28f5ebde99931d8a936af7188edb83700aa5e6833e60406117",
-  "source_sha256": "f6e320451f9ad5c1c6cb3f025d0f32babfbdc1c54f345e9d784c20697073a4d1",
-  "release_dll_sha256": "87e2ba29e242b04ad34a0906eca15a8e11e7ab98423055183eaaa02d0f8bea55",
-  "test_dll_sha256": "bb6adc0843b9ec45d8c108c1f29afee99d73d7ec641986682fc56a8c75635890",
+  "input_sha256": "4c540cf75476adb6707e98ba03395abacc29961800f7922b5feccff52a018ee7",
+  "source_sha256": "bcde5f706ccac0d304c35fef5336c67f77306cc2c1d408814adcc0f4c7355df7",
+  "release_dll_sha256": "90baeb87d6994248889256afd9926f52aef3118996dc5ee981b7eb8a546e76d4",
+  "test_dll_sha256": "8405d9f7aa92f25fcbff85cb84dd1569cbb428c9c21f3c08d9981e28e4589476",
   "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
   "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
-  "probe_source_sha256": "7f7318764929257c428e8b0aaee8f927e709d175559514d58fcaffce43db06dd",
+  "probe_source_sha256": "b05b021486eae2eb1841f021a7da9a29b2382d3d447a1b671f00db7f8d65ebbc",
   "process_exit": 0,
   "independent_copies": true,
   "gaps": [
@@ -24,8 +24,8 @@
     "Campaign balance and Workshop delivery unperformed",
     "Audible/hardware review and hurt/victory/compressed/looped audio unperformed"
   ],
-  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction; Fairy in a Bottle automatic lethal-hit/repeated recovery and held-death-pose control; short stereo PCM16 WAV cues for selection/transition/attack/cast/death, native non-Spine death sound, live mute/gain/voice-lifetime controls; independent rest/shop atlas actors, native rest/purchase responses, native rest map checkpoint/reload and Windows progress-reader lock controls",
-  "fixture_toolkit_snapshot": "e9d488c20569bd9f361fca125700cf8c71b1f035",
+  "fixture": "NativeFixture, Windows/headless; numeric cards, PNG/SVG card portraits, relics/potions, solo events, Ancient dialogue/locale switching; original 12-frame SVG combat atlas with six states, native victory and reconstruction; Fairy in a Bottle automatic lethal-hit/repeated recovery and held-death-pose control; short stereo PCM16 WAV cues for selection/transition/attack/cast/death, native non-Spine death sound, live mute/gain/voice-lifetime controls; independent rest/shop atlas actors, native rest/purchase responses, native rest map checkpoint/reload and Windows progress-reader lock controls; declared SVG/PNG selection portraits and background, native focus selection, visual lock/unlock animation and glow, replacement/foreign controls and Back navigation",
+  "fixture_toolkit_snapshot": "9410b0850fb1107b565f52a36d22629c0448e9c2",
   "checks": [
     {
       "check": "native-io",
@@ -37,6 +37,35 @@
       "check": "registration",
       "character": "CHARACTER.NATIVEFIXTURE-CHARACTER",
       "hp": 70
+    },
+    {
+      "check": "selection-art",
+      "role": "portrait",
+      "asset": "assets/selection/portrait.svg",
+      "nativeInit": true,
+      "unlockRefresh": true
+    },
+    {
+      "check": "selection-art",
+      "role": "locked_portrait",
+      "asset": "assets/selection/locked.png",
+      "nativeLock": true
+    },
+    {
+      "check": "selection-art",
+      "role": "background",
+      "asset": "assets/selection/background.svg",
+      "nativeFocus": true,
+      "fit": "KeepAspectCentered",
+      "otherCharacterUnchanged": true,
+      "cleanup": true
+    },
+    {
+      "check": "selection-controls",
+      "nativeButton": true,
+      "keyboardFocus": true,
+      "nativeBack": true,
+      "unlockStatePreserved": true
     },
     {
       "check": "starting-kit",
@@ -1022,5 +1051,5 @@
     "Rare/Attack": 8,
     "Uncommon/Power": 9
   },
-  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item, event, dialogue, locale, combat-sprite, short PCM audio and independent rest/shop integration evidence. Human art/layout and audible/hardware review, selection/ending presentation, devices, co-op and balance remain separate gates."
+  "note": "Recorded local fixture snapshot; excludes personal paths, account IDs, tokens, logs and owned game files. Numeric, portrait, item, event, dialogue, locale, combat-sprite, short PCM audio, independent rest/shop and selection UI integration evidence. Human art/layout and audible/hardware review, transition/ending presentation, physical devices, co-op and balance remain separate gates."
 }

@@ -170,6 +170,8 @@ internal static class NativeProbe
                     vars = m.DynamicVars.ToDictionary(v => v.Key, v => v.Value.BaseValue)
                 }).ToArray()
             }).ToArray();
+            Progress("selection");
+            await Selection();
             Progress("start-run");
             await NGame.Instance.StartNewSingleplayerRun(character, true, ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "CHARACTER-BUILDER-NATIVE-FIXTURE", GameMode.Standard, 0);
             SaveManager.Instance.SetFtuesEnabled(false);
@@ -372,5 +374,6 @@ internal static class NativeProbe
 @SPRITE_PROBE@
 @AUDIO_PROBE@
 @PRESENTATION_PROBE@
+@SELECTION_PROBE@
 }
 #endif

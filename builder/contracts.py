@@ -175,9 +175,18 @@ def load_presentation(toolkit, root, config=None):
     config = config or read_json(contained(root, 'character.json'))
     if not config['features']['presentation']:
         raise BuilderError('Custom presentation disabled: clear design/presentation.json')
-    if not data['rooms']:
-        raise BuilderError('Presentation needs at least one room, or an empty object for native fallbacks')
-    for actor in data['rooms'].values():
+    if not data.get('rooms') and not data.get('selection'):
+        raise BuilderError('Presentation needs room or selection data, or an empty object for native fallbacks')
+    selection = data.get('selection', {})
+    if 'background_fit' in selection and 'background' not in selection:
+        raise BuilderError('Selection background_fit requires a background asset')
+    declared = {a['path'] for a in read_json(contained(root, 'assets/manifest.json'))}
+    for role, asset in selection.items():
+        if role == 'background_fit':
+            continue
+        if asset not in declared or Path(asset).suffix.lower() not in {'.svg', '.png'}:
+            raise BuilderError('Selection art must reference an exact declared SVG/PNG asset')
+    for actor in data.get('rooms', {}).values():
         validate_atlas(root, actor, loops={'idle'})
     return data
 

@@ -162,6 +162,7 @@ def prepare(toolkit, root, game, baselib, workshop, steam_userdata, lab_id):
     probe = probe.replace('@SPRITE_PROBE@', (toolkit / 'builder/templates/NativeSprites.cs.txt').read_text(encoding='utf-8'))
     probe = probe.replace('@AUDIO_PROBE@', (toolkit / 'builder/templates/NativeAudio.cs.txt').read_text(encoding='utf-8'))
     probe = probe.replace('@PRESENTATION_PROBE@', (toolkit / 'builder/templates/NativePresentation.cs.txt').read_text(encoding='utf-8'))
+    probe = probe.replace('@SELECTION_PROBE@', (toolkit / 'builder/templates/NativeSelection.cs.txt').read_text(encoding='utf-8'))
     probe_path = contained(root, '.builder/NativeProbe.cs')
     atomic(probe_path, probe.encode())
     test_output = contained(root, 'build/native-tests')
