@@ -98,3 +98,5 @@ python -m unittest discover -s builder/tests -v
 ```
 
 The fixture suite uses temporary Git repositories and actual local submodules, not copied-template substitutes. It tests independently named projects, recursive clones, changed inputs/evidence, invalid designs, ownership preservation, IDs and closed packages. To additionally compile a temporary fixture, set `BUILDER_TEST_GAME_DATA` to the owned data directory. Optional native compilation is a separate test; no paid-game files are needed in CI.
+
+Architect ending authoring uses `THE_ARCHITECT` rows in `design/dialogue.json`; see [the dialogue contract](DIALOGUE.md#architect-ending-dialogue). English first/repeat text retains native ending choreography and Proceed. Translated endings and completed-campaign evidence remain separate.

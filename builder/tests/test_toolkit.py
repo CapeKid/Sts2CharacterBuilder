@@ -105,6 +105,10 @@ def authored_dialogue():
     return rows
 
 
+def ending_dialogue():
+    return read_json(REPO / 'builder/examples/ending-dialogue/dialogue.json')
+
+
 def translated_dialogue():
     return read_json(REPO / 'builder/examples/translated-dialogue/dialogue.json')
 
@@ -1140,10 +1144,47 @@ class ToolkitTests(unittest.TestCase):
             publish(invalid)
             with self.assertRaisesRegex(BuilderError, 'dialogue-locale'): native_evidence(self.toolkit, self.project)
 
+    def test_ending_dialogue_contract_and_evidence(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        rows = ending_dialogue()
+        atomic(self.project / 'design/dialogue.json', encoded(rows))
+        self.assertEqual(load_dialogue(self.toolkit, self.project), rows)
+        generate(self.toolkit, self.project)
+        before = input_hash(self.project)
+        self.edit('design/dialogue.json', lambda r: r[0]['lines'][0].update(text='A different original ending.'))
+        self.assertNotEqual(before, input_hash(self.project))
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
+        for mutate in (lambda r: r.append(copy.deepcopy(r[0])),
+                       lambda r: r[0].update(translations=[dict(language='fra', lines=[{}, {}, dict(text='Fin')])]),
+                       lambda r: r[0]['lines'][-1].update(next='Finish'),
+                       lambda r: r[1].update(end_attackers='None')):
+            invalid = ending_dialogue(); mutate(invalid)
+            atomic(self.project / 'design/dialogue.json', encoded(invalid))
+            with self.assertRaises(BuilderError): load_dialogue(self.toolkit, self.project)
+        atomic(self.project / 'design/dialogue.json', encoded(rows)); generate(self.toolkit, self.project)
+        receipt = self.mock_pool_evidence()
+        cases = [dict(check='ending-dialogue', ancient=r['ancient'], visit=r['visit'], visibleText=True,
+                 speakersPreserved=True, nativeAdvance=True, nativeChoreography=True, proceedUnchanged=True, checkpointReplay=True) for r in rows]
+        cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True)]
+        base = list(receipt['checks'])
+        def publish(extra):
+            receipt['checks'] = base + extra
+            data = encoded(receipt); path = f'private/ending-evidence-{digest(data)}.json'
+            atomic(self.project / path, data)
+            atomic(self.project / '.builder/native-evidence.json', encoded(dict(path=path, sha256=digest(data))))
+        publish(cases); self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        for invalid in (cases[:-1], cases[1:], cases + [cases[0]],
+                        [dict(c, nativeChoreography=False) if c['check']=='ending-dialogue' else c for c in cases],
+                        [dict(c, proceedUnchanged=False) if c['check']=='ending-dialogue' else c for c in cases],
+                        [dict(c, checkpointReplay=False) if c['check']=='ending-dialogue' else c for c in cases],
+                        [dict(c, foreignUnchanged=False) if c['check']=='ending-controls' else c for c in cases]):
+            publish(invalid)
+            with self.assertRaisesRegex(BuilderError, 'ending dialogue'): native_evidence(self.toolkit, self.project)
+
     def test_dialogue_contract_and_optional_generation(self):
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
         invalid = [lambda r: r.append(copy.deepcopy(r[0])),
-                   lambda r: r[0].update(ancient='THE_ARCHITECT'),
+                   lambda r: r[0].update(ancient='UNKNOWN_ANCIENT'),
                    lambda r: r[0].update(visit='victory'),
                    lambda r: r[0].update(lines=[]),
                    lambda r: r[0]['lines'][0].update(speaker='Other'),
@@ -1545,7 +1586,7 @@ class ToolkitTests(unittest.TestCase):
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events() + conditional_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
-        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue()))
+        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue() + ending_dialogue()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])

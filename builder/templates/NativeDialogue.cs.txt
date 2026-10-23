@@ -32,7 +32,7 @@
         try {
             loc.SetLanguage(other);
             CheckInlineLocalization();
-            foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) {
+            foreach (var row in Request.GetProperty("dialogue").EnumerateArray().Where(r => r.GetProperty("ancient").GetString() != "THE_ARCHITECT")) {
                 var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == row.GetProperty("ancient").GetString());
                 var visits = row.GetProperty("visit").GetString() == "first" ? 0 : 100;
                 var selected = ancient.DialogueSet.GetValidDialogues(own, visits, 0, false).Single();
@@ -46,18 +46,142 @@
         observer.Patch(AccessTools.Method(typeof(NAncientDialogueLine), nameof(NAncientDialogueLine.PlaySfx)),
             postfix: new HarmonyMethod(typeof(NativeProbe), nameof(CountDialogueSfx)));
         try {
-            foreach (var row in Request.GetProperty("dialogue").EnumerateArray())
+            foreach (var row in Request.GetProperty("dialogue").EnumerateArray().Where(r => r.GetProperty("ancient").GetString() != "THE_ARCHITECT"))
                 foreach (var locale in DialogueLocales(row)) {
                     loc.SetLanguage(locale); CheckInlineLocalization();
                     await DialogueEncounter(row, locale);
                 }
         } finally { loc.SetLanguage(language); observer.UnpatchAll(observer.Id); }
+        await EndingDialogues();
 #else
         await Task.CompletedTask;
         Checks.Add(new { check = "dialogue-controls", skipped = true, reason = "No authored dialogue" });
 #endif
     }
 #if BUILDER_AUTHORED_DIALOGUE
+    private sealed record EndingSelection(AncientDialogue Native, ArchitectAttackers Start, ArchitectAttackers End, int? Visit, bool Repeating);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MegaCrit.Sts2.Core.Models.Events.TheArchitect, EndingSelection> EndingSelections = new();
+    private static bool ForceEndingRoom;
+    private static bool EndingRoomRoll(MegaCrit.Sts2.Core.Map.MapPointType __0, ref RoomType __result)
+    {
+        if (!ForceEndingRoom || __0 != MegaCrit.Sts2.Core.Map.MapPointType.Unknown) return true;
+        __result = RoomType.Event; return false;
+    }
+    private static void ObserveEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, AncientDialogue ____dialogue)
+    {
+        EndingSelections.Remove(__instance);
+        EndingSelections.Add(__instance, new(____dialogue, ____dialogue.StartAttackers, ____dialogue.EndAttackers, ____dialogue.VisitIndex, ____dialogue.IsRepeating));
+    }
+    private static AncientDialogue EndingLines(MegaCrit.Sts2.Core.Models.Events.TheArchitect model) =>
+        (AncientDialogue)AccessTools.Property(model.GetType(), "Dialogue").GetValue(model)!;
+    private static int EndingIndex(MegaCrit.Sts2.Core.Models.Events.TheArchitect model) =>
+        (int)AccessTools.Property(model.GetType(), "CurrentLineIndex").GetValue(model)!;
+    private static bool EndingExpected(Player player, int wins) => player.Character is Character
+        && Request.GetProperty("dialogue").EnumerateArray().Any(r => r.GetProperty("ancient").GetString() == "THE_ARCHITECT"
+            && r.GetProperty("visit").GetString() == (wins == 0 ? "first" : "repeat"));
+    private static void CheckEndingSelection(MegaCrit.Sts2.Core.Models.Events.TheArchitect model, bool authored)
+    {
+        Require(EndingSelections.TryGetValue(model, out var before), "Native ending selection was not observed.");
+        var after = EndingLines(model);
+        Require(after.StartAttackers == before!.Start && after.EndAttackers == before.End
+            && after.VisitIndex == before.Visit && after.IsRepeating == before.Repeating, "Ending choreography/visit metadata changed.");
+        Require(authored ? after.Lines.All(l => l.LineText!.LocEntryKey.Contains(".BUILDER_DIALOGUE.THE_ARCHITECT."))
+            : ReferenceEquals(after, before.Native), "Ending selection/fallback changed.");
+    }
+    private static async Task EndingDialogues()
+    {
+        var rows = Request.GetProperty("dialogue").EnumerateArray().Where(r => r.GetProperty("ancient").GetString() == "THE_ARCHITECT").ToArray();
+        // Even ordinary-only configurations check that our selector leaves endings alone.
+        var observer = new Harmony(typeof(ModEntry).Namespace + ".ending-observer");
+        observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "LoadDialogue"),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveEnding)) { priority = Priority.First });
+        observer.Patch(AccessTools.Method(typeof(RunManager), "RollRoomTypeFor"),
+            prefix: new HarmonyMethod(typeof(NativeProbe), nameof(EndingRoomRoll)));
+        var progress = SaveManager.Instance.Progress;
+        var ownStats = progress.GetOrCreateCharacterStats(ModelDb.Character<Character>().Id); var priorWins = ownStats.TotalWins;
+        try {
+            foreach (var character in new CharacterModel[] { ModelDb.Character<Character>(), ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>() }) {
+                var player = Player.CreateForNewRun(character, Run.Players.Single().UnlockState, 104);
+                _ = RunState.CreateForTest([player], ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], GameMode.Standard, 0, "BUILDER-ENDING-CONTROL");
+                var stats = progress.GetOrCreateCharacterStats(character.Id); var original = stats.TotalWins;
+                try {
+                    foreach (var wins in new[] { 0, 1, 100 }) {
+                        stats.TotalWins = wins;
+                        var model = (MegaCrit.Sts2.Core.Models.Events.TheArchitect)ModelDb.Event<MegaCrit.Sts2.Core.Models.Events.TheArchitect>().ToMutable();
+                        await model.BeginEvent(player, null!, false);
+                        CheckEndingSelection(model, EndingExpected(player, wins));
+                    }
+                } finally { stats.TotalWins = original; }
+            }
+            foreach (var row in rows) {
+                var visit = row.GetProperty("visit").GetString()!;
+                Progress("ending:" + visit);
+                await NGame.Instance!.ReturnToMainMenu();
+                ownStats.TotalWins = visit == "first" ? 0 : 100;
+                await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
+                    ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-ENDING-" + visit, GameMode.Standard, 0);
+                Run.ExtraFields.StartedWithNeow = true;
+                var rooms = (RoomSet)AccessTools.Field(typeof(ActModel), "_rooms").GetValue(Run.Act)!;
+                AccessTools.Field(rooms.GetType(), "events").SetValue(rooms, new List<EventModel> { ModelDb.Event<MegaCrit.Sts2.Core.Models.Events.TheArchitect>() });
+                AccessTools.Field(rooms.GetType(), "eventsVisited").SetValue(rooms, 0);
+                var point = Run.Map.StartingMapPoint; point.PointType = MegaCrit.Sts2.Core.Map.MapPointType.Unknown;
+                ForceEndingRoom = true;
+                try { await RunManager.Instance.EnterMapCoord(point.coord); }
+                finally { ForceEndingRoom = false; }
+                var model = await EndingReady(row);
+                // Reload from a real pre-entry map checkpoint after partial advancement.
+                if (row.GetProperty("lines").GetArrayLength() > 1) await AdvanceEnding(model, 1);
+                await NGame.Instance.ReturnToMainMenu();
+                var saved = SaveManager.Instance.LoadRunSave();
+                Require(saved.Success && saved.SaveData != null, "Ending checkpoint missing.");
+                var restored = RunState.FromSerializable(saved.SaveData!);
+                await RunManager.Instance.SetUpSavedSingleplayer(restored, saved.SaveData!);
+                await NGame.Instance.LoadRun(restored, saved.SaveData!.PreFinishedRoom);
+                model = await EndingReady(row);
+                Require(EndingIndex(model) == 0, "Ending checkpoint did not replay from start.");
+                for (int i = 1; i < row.GetProperty("lines").GetArrayLength(); i++) {
+                    await AdvanceEnding(model, i); CheckEndingText(row, model);
+                }
+                var option = model.CurrentOptions.Single();
+                var native = (MegaCrit.Sts2.Core.Events.EventOption)AccessTools.Method(model.GetType(), "CreateProceedOption").Invoke(model, null)!;
+                Require(option.IsProceed && !option.IsLocked && option.TextKey == native.TextKey
+                    && option.Title.LocEntryKey == native.Title.LocEntryKey && option.OnChosen == native.OnChosen,
+                    "Native Proceed/WinRun callback changed.");
+                Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
+                    nativeAdvance = true, nativeChoreography = true, proceedUnchanged = true, checkpointReplay = true });
+            }
+            Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true });
+        } finally { ownStats.TotalWins = priorWins; ForceEndingRoom = false; observer.UnpatchAll(observer.Id); }
+    }
+    private static async Task<MegaCrit.Sts2.Core.Models.Events.TheArchitect> EndingReady(JsonElement row)
+    {
+        await Wait(() => Run.CurrentRoom is EventRoom r && r.LocalMutableEvent is MegaCrit.Sts2.Core.Models.Events.TheArchitect m
+            && m.CurrentOptions.Count == 1 && DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Any(b => b.IsVisibleInTree() && b.IsEnabled && b.Option == m.CurrentOptions[0]), "Ending button missing.");
+        var model = (MegaCrit.Sts2.Core.Models.Events.TheArchitect)((EventRoom)Run.CurrentRoom!).LocalMutableEvent;
+        CheckEndingSelection(model, true); CheckEndingText(row, model);
+        return model;
+    }
+    private static void CheckEndingText(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model)
+    {
+        CheckDialogueModel(row, EndingLines(model).Lines, "eng");
+        var i = EndingIndex(model);
+        var bubble = (MegaCrit.Sts2.Core.Nodes.Vfx.NSpeechBubbleVfx)AccessTools.Property(model.GetType(), "SpeechBubble").GetValue(model)!;
+        Require(bubble != null && bubble.IsInsideTree(), "Ending speech bubble missing.");
+        var label = (MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel)AccessTools.Field(bubble.GetType(), "_label").GetValue(bubble)!;
+        Require(label.Text == row.GetProperty("lines")[i].GetProperty("text").GetString(), "Rendered ending speech differs.");
+        if (i < row.GetProperty("lines").GetArrayLength() - 1)
+            Require(model.CurrentOptions.Single().Title.GetFormattedText() == DialogueText(row, "eng", i, "next"), "Ending next label differs.");
+    }
+    private static async Task AdvanceEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect model, int index)
+    {
+        var option = model.CurrentOptions.Single();
+        var button = DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Single(b => b.IsVisibleInTree() && b.Option == option);
+        Require(button.IsEnabled && !option.IsProceed, "Ending advance unavailable.");
+        await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(button);
+        await RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks();
+        await Wait(() => EndingIndex(model) == index && model.CurrentOptions.Count == 1 && model.CurrentOptions[0] != option
+            && DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Any(b => b.IsVisibleInTree() && b.IsEnabled && b.Option == model.CurrentOptions[0]), "Ending advance failed.");
+    }
     private static int DialogueSfxCalls;
     private static void CountDialogueSfx() => DialogueSfxCalls++;
     private static void CheckLiveDialogueLocale(JsonElement row, NAncientEventLayout layout, string language)

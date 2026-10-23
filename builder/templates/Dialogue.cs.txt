@@ -8,6 +8,8 @@ using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Entities.Ancients;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Events;
+using MegaCrit.Sts2.Core.Saves;
 
 namespace @NAMESPACE@;
 
@@ -31,6 +33,9 @@ internal static class CharacterDialogue
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Identify)));
             harmony.Patch(AccessTools.Method(typeof(AncientDialogueSet), nameof(AncientDialogueSet.GetValidDialogues)),
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Select)));
+            if (Rows.EnumerateArray().Any(r => r.GetProperty("ancient").GetString() == "THE_ARCHITECT"))
+                harmony.Patch(AccessTools.Method(typeof(TheArchitect), "LoadDialogue"),
+                    postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Ending)));
             harmony.Patch(AccessTools.Method(typeof(LocManager), "TriggerLocaleChange"),
                 prefix: new HarmonyMethod(typeof(CharacterDialogue), nameof(RestoreLocalization)),
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(RefreshVisibleDialogue)));
@@ -94,19 +99,35 @@ internal static class CharacterDialogue
         var visit = charVisits <= 0 ? "first" : "repeat";
         foreach (var row in Rows.EnumerateArray()) {
             if (row.GetProperty("ancient").GetString() != identity.Entry || row.GetProperty("visit").GetString() != visit) continue;
-            var lines = row.GetProperty("lines").EnumerateArray().ToArray();
-            var dialogue = new AncientDialogue(lines.Select(_ => "").ToArray()) { VisitIndex = charVisits <= 0 ? 0 : 1, IsRepeating = charVisits > 0 };
-            Install(row, LocManager.Instance);
-            for (var i = 0; i < lines.Length; i++) {
-                var key = Key(row, i);
-                var line = dialogue.Lines[i];
-                line.Speaker = Enum.Parse<AncientDialogueSpeaker>(lines[i].GetProperty("speaker").GetString()!);
-                line.LineText = new LocString("ancients", key);
-                if (i < lines.Length - 1) {
-                    line.NextButtonText = new LocString("ancients", key + ".next");
-                }
-            }
-            __result = [dialogue];
+            __result = [Create(row, charVisits <= 0 ? 0 : 1, charVisits > 0)];
+            return;
+        }
+    }
+    private static AncientDialogue Create(JsonElement row, int? visit, bool repeating, ArchitectAttackers start = ArchitectAttackers.None, ArchitectAttackers end = ArchitectAttackers.None)
+    {
+        var lines = row.GetProperty("lines").EnumerateArray().ToArray();
+        var dialogue = new AncientDialogue(lines.Select(_ => "").ToArray()) { VisitIndex = visit, IsRepeating = repeating, StartAttackers = start, EndAttackers = end };
+        Install(row, LocManager.Instance);
+        for (var i = 0; i < lines.Length; i++) {
+            var line = dialogue.Lines[i];
+            line.Speaker = Enum.Parse<AncientDialogueSpeaker>(lines[i].GetProperty("speaker").GetString()!);
+            line.LineText = new LocString("ancients", Key(row, i));
+            if (i < lines.Length - 1) line.NextButtonText = new LocString("ancients", Key(row, i) + ".next");
+        }
+        return dialogue;
+    }
+    private static void Ending(TheArchitect __instance, ref AncientDialogue? ____dialogue)
+    {
+        if (__instance.Owner?.Character is not Character || ____dialogue == null) return;
+        var wins = SaveManager.Instance.Progress.GetStatsForCharacter(__instance.Owner.Character.Id)?.TotalWins ?? 0;
+        var visit = wins <= 0 ? "first" : "repeat";
+        foreach (var row in Rows.EnumerateArray()) {
+            if (row.GetProperty("ancient").GetString() != "THE_ARCHITECT" || row.GetProperty("visit").GetString() != visit) continue;
+            // Keep the exact native selection's attack choreography and visit metadata.
+            // Native line advancement, speech bubbles and Proceed/WinRun remain intact.
+            var native = ____dialogue;
+            var dialogue = Create(row, native.VisitIndex, native.IsRepeating, native.StartAttackers, native.EndAttackers);
+            ____dialogue = dialogue;
             return;
         }
     }

@@ -1,0 +1,32 @@
+[
+  {
+    "ancient": "THE_ARCHITECT",
+    "visit": "first",
+    "lines": [
+      {
+        "speaker": "Ancient",
+        "text": "You have carried your question all this way.",
+        "next": "Answer"
+      },
+      {
+        "speaker": "Character",
+        "text": "And found more than one answer.",
+        "next": "Listen"
+      },
+      {
+        "speaker": "Ancient",
+        "text": "Then carry those answers beyond these walls."
+      }
+    ]
+  },
+  {
+    "ancient": "THE_ARCHITECT",
+    "visit": "repeat",
+    "lines": [
+      {
+        "speaker": "Character",
+        "text": "There is still another path to walk."
+      }
+    ]
+  }
+]

@@ -179,9 +179,19 @@ def native_evidence(toolkit, root):
             raise BuilderError(f'Native evidence does not cover every {label} case')
     for label in ('authored-dialogue', 'dialogue-resume'):
         actual = [(c.get('ancient'), c.get('visit')) for c in receipt.get('checks', []) if c.get('check') == label]
-        expected_dialogue = {(r['ancient'], r['visit']) for r in dialogue}
+        expected_dialogue = {(r['ancient'], r['visit']) for r in dialogue if r['ancient'] != 'THE_ARCHITECT'}
         if set(actual) != expected_dialogue or len(actual) != len(expected_dialogue):
             raise BuilderError(f'Native evidence does not cover every {label} case')
+    ending = [c for c in receipt.get('checks', []) if c.get('check') == 'ending-dialogue']
+    expected_endings = {(r['ancient'], r['visit']) for r in dialogue if r['ancient'] == 'THE_ARCHITECT'}
+    actual_endings = [(c.get('ancient'), c.get('visit')) for c in ending]
+    ending_fields = ('visibleText', 'speakersPreserved', 'nativeAdvance', 'nativeChoreography', 'proceedUnchanged', 'checkpointReplay')
+    controls = [c for c in receipt.get('checks', []) if c.get('check') == 'ending-controls']
+    if (set(actual_endings) != expected_endings or len(actual_endings) != len(expected_endings)
+            or any(c.get(f) is not True for c in ending for f in ending_fields)
+            or expected_endings and (len(controls) != 1 or any(controls[0].get(f) is not True
+                for f in ('foreignUnchanged', 'omittedUnchanged', 'lateRepeat', 'nativeMetadata')))):
+        raise BuilderError('Native evidence does not cover every ending dialogue/control case')
     sprites = load_sprites(toolkit, root, config)
     actual = [c.get('state') for c in receipt.get('checks', []) if c.get('check') == 'sprite-state']
     expected_states = set(sprites['states']) if sprites else set()
