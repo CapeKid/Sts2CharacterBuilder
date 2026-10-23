@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "kind": "native-english-architect-endings",
+  "protocol": {
+    "sample": "builder/examples/ending-dialogue/dialogue.json",
+    "sample_canonical_json_sha256": "fb40713c72ff699c9553ce389361c81ef3c271089ba7e42a8ef39db18958c248",
+    "timeout_seconds": 600,
+    "real_map_checkpoint": true,
+    "forced_act_one_ending": true,
+    "counterfactual_selection_controls": [
+      "Empty native selection",
+      "Nondefault native attack/repeat metadata with nullable visit index"
+    ],
+    "fixture_statistics_only": true,
+    "proceed_callback_compared_to_native": true,
+    "proceed_invoked": false,
+    "closing_attacks_executed": false,
+    "no_lab_replayed": true,
+    "prior_attempts": [
+      {
+        "outcome": "failed-probe-preparation",
+        "reason": "Native callback getter is private; probe now uses reflection"
+      },
+      {
+        "outcome": "failed-native-selector",
+        "reason": "New characters can have an empty native ending; added production support and explicit counterfactual controls"
+      },
+      {
+        "outcome": "failed-render-assertion",
+        "reason": "Native speech wraps text with center/fly-in markup; assertion now includes the wrapper"
+      },
+      {
+        "outcome": "failed-proceed-assertion",
+        "reason": "Native Architect final option has IsProceed false; compare directly with the actual native factory and callback"
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "character": "EndingDialogueTrial",
+      "toolkit_commit": "17885c7dfd8a8f9d4acafc9fe007c533572a9775",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "independent_copies": true,
+      "dialogue_canonical_json_sha256": "9138a65654f5256394a26f1a529b1164b7f4fd81f05fcd908f3ef4cc0fab0037",
+      "conversations": [
+        {
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "lines": 3
+        },
+        {
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "lines": 1
+        },
+        {
+          "ancient": "NEOW",
+          "visit": "first",
+          "lines": 1
+        }
+      ],
+      "check_count": 52,
+      "executed_check_count": 46,
+      "skipped_sentinel_count": 6,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "dialogue-controls": 1,
+        "authored-dialogue": 1,
+        "dialogue-resume": 1,
+        "ending-dialogue": 2,
+        "ending-controls": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "sprite-integration": 1,
+        "item-pools": 1
+      },
+      "dialogue_checks": [
+        {
+          "check": "dialogue-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "untaggedUnchanged": true,
+          "lateRepeat": true,
+          "firstEver": true,
+          "localeSwitch": "zhs",
+          "inlineLocalizationPreserved": true
+        },
+        {
+          "check": "authored-dialogue",
+          "ancient": "NEOW",
+          "visit": "first",
+          "visibleText": true,
+          "nativeAdvance": true,
+          "rewardsAvailable": true
+        },
+        {
+          "check": "dialogue-resume",
+          "ancient": "NEOW",
+          "visit": "first",
+          "nativeCheckpoint": true,
+          "replayFromStart": true
+        },
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "lateRepeat": true,
+          "nativeMetadata": true,
+          "emptyNative": true,
+          "existingMetadata": true
+        }
+      ],
+      "package": {
+        "sha256": "011584c9509cdff95082621f3cc82fc44a751092274214351d3c83c509ba1106",
+        "payload_files": 7,
+        "probe_and_authoring_data_excluded": true
+      },
+      "input_sha256": "eb135f77f4b115879ac1896ba420496c3bcf59485882dfa0a34e4548249cd712",
+      "source_sha256": "a8bca7b51f27be246ecd2ad7f9d779210796c0569b217a1a64a182ee0767016b",
+      "release_dll_sha256": "a2633955ecdb66232cd45e9628c053c9d154e88b83361be7ad7a7ee0200023c3",
+      "test_dll_sha256": "df906724fa2a6d656ab96f7e2b6db37941ebd8cfbe46f403e1eb4a2826130b2f",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "b291a1b592a603b0b8923d46ddd1118ee4e52a29e47ab8951e53a42bf80b18b7"
+    },
+    {
+      "character": "EndingFallbackTrial",
+      "toolkit_commit": "17885c7dfd8a8f9d4acafc9fe007c533572a9775",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "independent_copies": true,
+      "dialogue_canonical_json_sha256": "8b542371c9854105cab5d072ee7fc9808500432eed80a7f3eecd2bcc92e97322",
+      "conversations": [
+        {
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "lines": 3
+        }
+      ],
+      "check_count": 49,
+      "executed_check_count": 43,
+      "skipped_sentinel_count": 6,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "dialogue-controls": 1,
+        "ending-dialogue": 1,
+        "ending-controls": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "sprite-integration": 1,
+        "item-pools": 1
+      },
+      "dialogue_checks": [
+        {
+          "check": "dialogue-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "untaggedUnchanged": true,
+          "lateRepeat": true,
+          "firstEver": true,
+          "localeSwitch": "zhs",
+          "inlineLocalizationPreserved": true
+        },
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "lateRepeat": true,
+          "nativeMetadata": true,
+          "emptyNative": true,
+          "existingMetadata": true
+        }
+      ],
+      "package": {
+        "sha256": "6d277b819ba999112465217756a7f72396e810b5bf317ba7463bfec2f6f771ea",
+        "payload_files": 7,
+        "probe_and_authoring_data_excluded": true
+      },
+      "input_sha256": "723b02d957c19d4539d4d5dee074d780897507cf589998e511ab425643b36a8b",
+      "source_sha256": "6bf07162e728df1cd205a6884cc98218efc37c3d82a73e2a1f79a7741502c012",
+      "release_dll_sha256": "a8b06518c6633b58a8bdd292ed6be88a337aec26ed4cdfa4fa0de5a6cbe30ce7",
+      "test_dll_sha256": "a8384f0967b9bb03362691c8ec0b6b47e7d0cca21795c6ded585a43d863ea62e",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "297ed59fb935199ad3df3292f6229d7394383e31f626ce16214d17457f890b08"
+    }
+  ],
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "English ending text only; translated endings and other victory/defeat text require extensions",
+    "Forced Act 1 ending fixtures are not campaign reachability, completion, scoring/stat-update or post-win-screen evidence",
+    "Closing attacks/WinRun are not invoked; only native metadata and exact callback binding are checked",
+    "Owned public-beta v0.111.0 only; regular branch, human voice/layout/devices, co-op and broader release gates remain"
+  ]
+}
