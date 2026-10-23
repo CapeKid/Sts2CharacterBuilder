@@ -168,9 +168,11 @@
                 }
                 var option = model.CurrentOptions.Single();
                 var native = (MegaCrit.Sts2.Core.Events.EventOption)AccessTools.Method(model.GetType(), "CreateProceedOption").Invoke(model, null)!;
-                Require(option.IsProceed && !option.IsLocked && option.TextKey == native.TextKey
-                    && option.Title.LocEntryKey == native.Title.LocEntryKey && object.Equals(AccessTools.Property(option.GetType(), "OnChosen").GetValue(option), AccessTools.Property(native.GetType(), "OnChosen").GetValue(native)),
-                    "Native Proceed/WinRun callback changed.");
+                Require(option.IsProceed == native.IsProceed && option.IsLocked == native.IsLocked && option.TextKey == native.TextKey
+                    && option.Title.LocEntryKey == native.Title.LocEntryKey && option.ShouldSaveChoiceToHistory == native.ShouldSaveChoiceToHistory,
+                    "Native Proceed option metadata changed.");
+                Require(object.Equals(AccessTools.Property(option.GetType(), "OnChosen").GetValue(option),
+                    AccessTools.Property(native.GetType(), "OnChosen").GetValue(native)), "Native WinRun callback changed.");
                 Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
                     nativeAdvance = true, nativeChoreography = true, proceedUnchanged = true, checkpointReplay = true });
             }
@@ -204,7 +206,7 @@
     {
         var option = model.CurrentOptions.Single();
         var button = DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Single(b => b.IsVisibleInTree() && b.Option == option);
-        Require(button.IsEnabled && !option.IsProceed, "Ending advance unavailable.");
+        Require(button.IsEnabled && EndingIndex(model) < EndingLines(model).Lines.Count - 1, "Ending advance unavailable.");
         await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(button);
         await RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks();
         await Wait(() => EndingIndex(model) == index && model.CurrentOptions.Count == 1 && model.CurrentOptions[0] != option
