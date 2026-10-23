@@ -1598,6 +1598,7 @@ class ToolkitTests(unittest.TestCase):
         self.assertNotIn(b'NativeProbe', (self.project / 'build/native/TestHero.dll').read_bytes())
         self.assertTrue(read_json(self.project / 'design/model-ids.json')['frozen'])
         stage(self.toolkit, self.project)
+        self.compile_probe()
 
     @unittest.skipUnless(os.environ.get('BUILDER_TEST_GAME_DATA'), 'Owned-game compilation is opt-in')
     def test_native_compile_fallback_and_extension(self):
@@ -1617,7 +1618,10 @@ public static partial class ModEntry
             print((self.project / 'private/build.log').read_text())
             raise
         self.assertEqual((self.project / 'src/Extensions/Configure.cs').read_bytes(), extension)
-        # Compile the other probe preprocessor branch without creating a game copy.
+        self.compile_probe()
+
+    def compile_probe(self):
+        # Compile test-only code without copying or starting the game.
         probe = (self.toolkit / 'builder/templates/NativeProbe.cs.txt').read_text().replace('@NAMESPACE@', 'TestHero')
         probe = probe.replace('@ITEM_PROBE@', (self.toolkit / 'builder/templates/NativeItems.cs.txt').read_text())
         probe = probe.replace('@EVENT_PROBE@', (self.toolkit / 'builder/templates/NativeEvents.cs.txt').read_text())
