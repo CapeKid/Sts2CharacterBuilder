@@ -1,0 +1,138 @@
+[
+  {
+    "id": "Crossroads",
+    "name": "A Sheltered Crossroads",
+    "body": "Two travelers wait beside a fork in the path. Each knows a different route.",
+    "acts": [
+      1,
+      2,
+      3
+    ],
+    "choices": [
+      {
+        "id": "AskCamp",
+        "name": "Visit the camp",
+        "next": "Camp",
+        "cost": {
+          "gold": 0,
+          "hp": 0
+        },
+        "reward": {
+          "gold": 0,
+          "heal": 0
+        }
+      },
+      {
+        "id": "AskTrail",
+        "name": "Follow the trail",
+        "next": "Trail",
+        "cost": {
+          "gold": 0,
+          "hp": 0
+        },
+        "reward": {
+          "gold": 0,
+          "heal": 0
+        }
+      }
+    ],
+    "pages": [
+      {
+        "id": "Camp",
+        "body": "The camp keeper offers work, or directions to a sheltered clearing.",
+        "choices": [
+          {
+            "id": "Directions",
+            "name": "Ask about shelter",
+            "next": "Shelter",
+            "cost": {
+              "gold": 0,
+              "hp": 0
+            },
+            "reward": {
+              "gold": 0,
+              "heal": 0
+            }
+          },
+          {
+            "id": "Trade",
+            "name": "Help mend the tents",
+            "result": "The traveler waves as you continue your journey.",
+            "cost": {
+              "gold": 0,
+              "hp": 5
+            },
+            "reward": {
+              "gold": 25,
+              "heal": 0
+            }
+          }
+        ]
+      },
+      {
+        "id": "Trail",
+        "body": "A guide offers a short rest, or directions to the same sheltered clearing.",
+        "choices": [
+          {
+            "id": "Directions",
+            "name": "Ask about shelter",
+            "next": "Shelter",
+            "cost": {
+              "gold": 0,
+              "hp": 0
+            },
+            "reward": {
+              "gold": 0,
+              "heal": 0
+            }
+          },
+          {
+            "id": "Trade",
+            "name": "Pay for a rest",
+            "result": "The traveler waves as you continue your journey.",
+            "cost": {
+              "gold": 30,
+              "hp": 0
+            },
+            "reward": {
+              "gold": 0,
+              "heal": 12
+            }
+          }
+        ]
+      },
+      {
+        "id": "Shelter",
+        "body": "The clearing is quiet. A traveler offers supplies and a moment to recover.",
+        "choices": [
+          {
+            "id": "Trade",
+            "name": "Trade for supplies",
+            "result": "The traveler waves as you continue your journey.",
+            "cost": {
+              "gold": 10,
+              "hp": 3
+            },
+            "reward": {
+              "gold": 15,
+              "heal": 4
+            }
+          },
+          {
+            "id": "Listen",
+            "name": "Stay a moment",
+            "result": "The traveler waves as you continue your journey.",
+            "cost": {
+              "gold": 0,
+              "hp": 0
+            },
+            "reward": {
+              "gold": 0,
+              "heal": 8
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

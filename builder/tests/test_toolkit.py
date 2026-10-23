@@ -13,7 +13,7 @@ from unittest.mock import patch
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
+from builder.contracts import BuilderError, digest, encoded, event_pages, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run, starter_cards
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, validate_playtest_evidence, verify
 from builder.publishing import check_publish, prepare_publish, publication
@@ -68,6 +68,10 @@ def authored_events():
                           choice('Exchange', gold=10, hp=3, gain=15, heal=4)]),
             dict(id='LastLesson', name='A Last Lesson', body='A final lesson awaits.', acts=[3],
                  choices=[choice('Listen', heal=8)])]
+
+
+def branching_events():
+    return read_json(REPO / 'builder/examples/crossroads/events.json')
 
 
 def item_art_assets():
@@ -561,6 +565,71 @@ class ToolkitTests(unittest.TestCase):
         self.edit('character.json', lambda c: c['features'].update(events=False))
         with self.assertRaisesRegex(BuilderError, 'events disabled'):
             validate(self.toolkit, self.project)
+
+    def test_branching_event_graph_contract_and_fingerprint(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        events = branching_events()
+        atomic(self.project / 'design/events.json', encoded(events))
+        self.assertEqual(len(event_pages(load_events(self.toolkit, self.project)[0])), 4)
+        generate(self.toolkit, self.project, freeze=True)
+        models = read_json(self.project / 'design/model-ids.json')['models']
+        self.assertIn('Event_Crossroads', models)
+        before = input_hash(self.project)
+        self.edit('design/events.json', lambda e: e[0]['pages'][0].update(body='Different branch text'))
+        self.assertNotEqual(before, input_hash(self.project))
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'):
+            generate(self.toolkit, self.project, check=True)
+        generate(self.toolkit, self.project)
+        self.assertEqual(models, read_json(self.project / 'design/model-ids.json')['models'])
+        for mutate in (
+            lambda e: e[0]['choices'][0].update(next='Missing'),
+            lambda e: e[0]['choices'][0].update(result='Ambiguous destination'),
+            lambda e: e[0]['choices'][0].pop('next'),
+            lambda e: e[0]['choices'][0]['reward'].update(gold=1),
+            lambda e: e[0]['pages'][0]['choices'][0].update(next='INITIAL'),
+            lambda e: e[0]['pages'][0]['choices'][0].update(next='Camp'),
+            lambda e: e[0]['pages'].append(dict(id='Unused', body='Unreachable', choices=e[0]['pages'][-1]['choices'])),
+            lambda e: e[0]['pages'][0].update(id='LEFT'),
+            lambda e: e[0]['pages'][0].update(id='RESULT_Trade'),
+            lambda e: e[0]['pages'][0].update(id='TR_AIL'),
+            lambda e: e[0]['pages'][0]['choices'].append(copy.deepcopy(e[0]['pages'][0]['choices'][0])),
+            lambda e: e[0]['pages'][-1]['choices'][0].update(id='Leave'),
+            lambda e: e[0].update(pages=[]),
+            lambda e: e[0].update(pages=e[0]['pages'] * 3),
+        ):
+            events = branching_events(); mutate(events)
+            atomic(self.project / 'design/events.json', encoded(events))
+            with self.assertRaises(BuilderError): load_events(self.toolkit, self.project)
+
+    def test_branching_event_evidence_requires_every_page_edge_and_checkpoint(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        events = branching_events()
+        atomic(self.project / 'design/events.json', encoded(events))
+        generate(self.toolkit, self.project)
+        receipt = self.mock_pool_evidence()
+        extra = []
+        for event in events:
+            for page in event_pages(event):
+                extra += [dict(check='authored-event', id=event['id'], page=page['id'], choice=c['id'], next=c.get('next'),
+                               thresholds=True, staleGuard=True, nativeButton=True, exactEffects=True, duplicateSuppressed=True, pageText=True)
+                          for c in page['choices']]
+                extra += [dict(check='event-leave', id=event['id'], page=page['id'], alwaysAvailable=True, unchanged=True),
+                          dict(check='event-resume', id=event['id'], page=page['id'], initialCheckpoint=True, branchRollback=True,
+                               interruptedRollback=True, replayNoDuplicate=True, completedPersistence=True)]
+        base = list(receipt['checks'])
+        def publish(rows):
+            receipt['checks'] = base + rows
+            data = encoded(receipt)
+            atomic(self.project / 'private/branch-evidence.json', data)
+            atomic(self.project / '.builder/native-evidence.json', encoded(dict(path='private/branch-evidence.json', sha256=digest(data))))
+        publish(extra)
+        self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        for invalid in (extra[1:], extra + [extra[0]], [r for r in extra if r.get('page') != 'Shelter'],
+                        [dict(r, pageText=False) if r['check']=='authored-event' else r for r in extra],
+                        [dict(r, branchRollback=False) if r['check']=='event-resume' else r for r in extra],
+                        [dict(r, next='Wrong') if r.get('next') else r for r in extra]):
+            publish(invalid)
+            with self.assertRaisesRegex(BuilderError, 'event'): native_evidence(self.toolkit, self.project)
 
     def test_event_ownership_ids_and_fingerprint(self):
         self.edit('character.json', lambda c: c['features'].update(events=True))
@@ -1370,7 +1439,7 @@ class ToolkitTests(unittest.TestCase):
         self.add_portrait()
         self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
-        atomic(self.project / 'design/events.json', encoded(authored_events()))
+        atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
         atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()))
         generate(self.toolkit, self.project)

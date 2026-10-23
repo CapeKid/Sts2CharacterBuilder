@@ -202,6 +202,9 @@ internal static class NativeProbe
             await Sprites();
             Progress("items");
             await Items();
+            // Event/dialogue checkpoint controls can leave us in a noncombat
+            // room. Card coverage must not depend on sprites/items being enabled.
+            await Room();
             foreach (var row in Request.GetProperty("cards").EnumerateArray()) foreach (var upgraded in new[] { false, true }) {
                 var key = row.GetProperty("id").GetString()!;
                 Progress("card:" + key + (upgraded ? "+" : ""));

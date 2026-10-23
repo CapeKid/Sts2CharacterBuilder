@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, digest, encoded, event_pages, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -135,12 +135,28 @@ def native_evidence(toolkit, root):
         raise BuilderError('Native evidence does not cover every item artwork role')
     events = load_events(toolkit, root, config)
     for label in ('authored-event', 'event-leave', 'event-resume'):
-        actual = [(check.get('id'), check.get('choice') if label == 'authored-event' else None)
+        actual = [(check.get('id'), check.get('page', 'INITIAL'), check.get('choice') if label == 'authored-event' else None)
                   for check in receipt.get('checks', []) if check.get('check') == label]
-        expected_events = {(event['id'], choice['id'] if label == 'authored-event' else None) for event in events
-                           for choice in (event['choices'] if label == 'authored-event' else [None])}
+        expected_events = {(event['id'], page['id'], choice['id'] if label == 'authored-event' else None) for event in events
+                           for page in event_pages(event) for choice in (page['choices'] if label == 'authored-event' else [None])}
         if set(actual) != expected_events or len(actual) != len(expected_events):
             raise BuilderError(f'Native evidence does not cover every {label} case')
+    branched = {e['id']: e for e in events if e.get('pages')}
+    fields = {
+        'authored-event': ('thresholds', 'staleGuard', 'nativeButton', 'exactEffects', 'duplicateSuppressed', 'pageText'),
+        'event-leave': ('alwaysAvailable', 'unchanged'),
+        'event-resume': ('initialCheckpoint', 'branchRollback', 'interruptedRollback', 'replayNoDuplicate', 'completedPersistence'),
+    }
+    for check in receipt.get('checks', []):
+        if check.get('id') not in branched or check.get('check') not in fields:
+            continue
+        if 'page' not in check or any(check.get(f) is not True for f in fields[check['check']]):
+            raise BuilderError('Native evidence does not cover branching event controls')
+        if check['check'] == 'authored-event':
+            page = next(p for p in event_pages(branched[check['id']]) if p['id'] == check['page'])
+            choice = next(c for c in page['choices'] if c['id'] == check['choice'])
+            if check.get('next') != choice.get('next'):
+                raise BuilderError('Native evidence has wrong branching event destination')
     dialogue = load_dialogue(toolkit, root, config)
     for label in ('authored-dialogue', 'dialogue-resume'):
         actual = [(c.get('ancient'), c.get('visit')) for c in receipt.get('checks', []) if c.get('check') == label]

@@ -22,12 +22,14 @@
             foreach (var (variants, index) in ModelDb.ActsByIndex.Select((variants, index) => (variants, index)))
                 foreach (var act in variants) Require(act.AllEvents.Any(e => e.Id == canonical.Id)
                     == row.GetProperty("acts").EnumerateArray().Any(a => a.GetInt32() == index + 1), "Event act registration mismatch.");
-            foreach (var choice in row.GetProperty("choices").EnumerateArray()) {
-                Progress("event:" + row.GetProperty("id").GetString() + "/" + choice.GetProperty("id").GetString());
-                await EventChoice(row, choice);
+            foreach (var (page, data) in EventPages(row)) {
+                foreach (var choice in data.GetProperty("choices").EnumerateArray()) {
+                    Progress("event:" + row.GetProperty("id").GetString() + "/" + page + "/" + choice.GetProperty("id").GetString());
+                    await EventChoice(row, page, choice);
+                }
+                await EventLeave(row, page);
+                await EventResume(row, page);
             }
-            await EventLeave(row);
-            await EventResume(row);
         }
         Checks.Add(new { check = "event-pools", characterOnly = true, soloOnly = true, actsVerified = true });
 #else
@@ -73,49 +75,98 @@
         await PlayerCmd.SetGold(gold, player);
     }
     private static (decimal gold, decimal hp) EventStats() => (Run.Players.Single().Gold, Run.Players.Single().Creature.CurrentHp);
-    private static async Task ClickEvent(EventModel model, string choice)
+    private static IEnumerable<(string Id, JsonElement Data)> EventPages(JsonElement row) =>
+        new[] { ("INITIAL", row) }.Concat(row.TryGetProperty("pages", out var pages)
+            ? pages.EnumerateArray().Select(p => (p.GetProperty("id").GetString()!, p)) : []);
+    private static async Task ClickEvent(EventModel model, string choice, string? next = null)
     {
         var option = EventOption(model, choice);
+        await Wait(() => EventNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Events.NEventOptionButton>()
+            .Any(b => b.IsVisibleInTree() && b.Option == option), "Current event button missing.");
         Require(!option.IsLocked && EventButton(option).IsEnabled, "Affordable event button disabled.");
         await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(EventButton(option));
-        await Wait(() => model.IsFinished, "Event choice did not finish.");
+        await Wait(() => next == null ? model.IsFinished : !model.IsFinished && model.CurrentOptions.Count > 0
+            && model.CurrentOptions.All(o => o.TextKey.StartsWith($"{model.Id.Entry}.pages.{next}.options.", StringComparison.Ordinal)),
+            "Event choice did not reach its destination.");
         await RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks();
     }
-    private static async Task EventChoice(JsonElement row, JsonElement choice)
+    private static async Task NavigateEvent(EventModel model, JsonElement row, string target)
+    {
+        var paths = new Dictionary<string, List<JsonElement>> { ["INITIAL"] = [] };
+        var queue = new Queue<string>(); queue.Enqueue("INITIAL");
+        while (queue.Count > 0) {
+            var page = queue.Dequeue();
+            foreach (var choice in EventPages(row).Single(p => p.Id == page).Data.GetProperty("choices").EnumerateArray()) {
+                if (!choice.TryGetProperty("next", out var next) || paths.ContainsKey(next.GetString()!)) continue;
+                paths[next.GetString()!] = [.. paths[page], choice]; queue.Enqueue(next.GetString()!);
+            }
+        }
+        foreach (var choice in paths[target])
+            await ClickEvent(model, choice.GetProperty("id").GetString()!, choice.GetProperty("next").GetString());
+        Require(model.Description.GetFormattedText() == EventPages(row).Single(p => p.Id == target).Data.GetProperty("body").GetString(),
+            "Branch page text differs.");
+    }
+    private static async Task<EventModel> EventPage(JsonElement row, string page)
+    {
+        var model = await EventRoom(row);
+        await NavigateEvent(model, row, page);
+        return model;
+    }
+    private static async Task FinishEvent(EventModel model, JsonElement row, string page)
+    {
+        for (int step = 0; step < 8; step++) {
+            var choice = EventPages(row).Single(p => p.Id == page).Data.GetProperty("choices")[0];
+            var next = choice.TryGetProperty("next", out var value) ? value.GetString() : null;
+            await ClickEvent(model, choice.GetProperty("id").GetString()!, next);
+            if (next == null) return;
+            page = next;
+        }
+        throw new InvalidDataException("Event path exceeded its page bound.");
+    }
+    private static async Task EventChoice(JsonElement row, string page, JsonElement choice)
     {
         var id = choice.GetProperty("id").GetString()!;
+        var next = choice.TryGetProperty("next", out var value) ? value.GetString() : null;
         var gold = choice.GetProperty("cost").GetProperty("gold").GetInt32();
         var hp = choice.GetProperty("cost").GetProperty("hp").GetInt32();
         if (gold > 0) {
-            await EventStats(gold - 1, 100); var locked = await EventRoom(row);
+            await EventStats(gold - 1, 100); var locked = await EventPage(row, page);
             await LockedEvent(locked, id);
         }
         if (hp > 0) {
-            await EventStats(gold, hp); var locked = await EventRoom(row);
+            await EventStats(gold, hp); var locked = await EventPage(row, page);
             await LockedEvent(locked, id);
         }
         if (gold > 0 || hp > 0) {
-            await EventStats(gold, 100); var stale = await EventRoom(row);
+            await EventStats(gold, 100); var stale = await EventPage(row, page);
             var option = EventOption(stale, id);
             await EventStats(gold > 0 ? gold - 1 : gold, gold > 0 ? 100 : hp);
             var before = EventStats();
             await option.Chosen();
             Require(EventStats() == before && !stale.IsFinished && EventOption(stale, id).IsLocked, "Stale affordability check charged resources.");
+            var refreshed = stale.CurrentOptions.ToArray();
+            await EventStats(gold, 100); before = EventStats();
+            await option.Chosen();
+            Require(EventStats() == before && !stale.IsFinished && stale.CurrentOptions.SequenceEqual(refreshed), "Old option executed after an affordability refresh.");
         }
         await EventStats(gold, 100);
-        var model = await EventRoom(row);
+        var model = await EventPage(row, page);
         var selected = EventOption(model, id); var siblings = model.CurrentOptions.Where(o => !o.IsLocked).ToArray();
         var initial = EventStats();
         Require(selected.Title.Exists() && selected.Description.Exists(), "Event choice localization missing.");
-        await ClickEvent(model, id);
+        await ClickEvent(model, id, next);
         var expectedGold = initial.gold - gold + choice.GetProperty("reward").GetProperty("gold").GetInt32();
         var expectedHp = initial.hp - hp + choice.GetProperty("reward").GetProperty("heal").GetInt32();
         Require(EventStats() == (expectedGold, expectedHp), "Event cost/reward differs.");
-        Require(model.Description.GetFormattedText() == choice.GetProperty("result").GetString(), "Event result text differs.");
+        var text = next == null ? choice.GetProperty("result").GetString()
+            : EventPages(row).Single(p => p.Id == next).Data.GetProperty("body").GetString();
+        Require(model.Description.GetFormattedText() == text, "Event result/page text differs.");
+        var options = model.CurrentOptions.ToArray();
         await Task.WhenAll(siblings.Select(option => option.Chosen()));
-        Require(EventStats() == (expectedGold, expectedHp), "Event paid out twice through old/sibling options.");
-        Checks.Add(new { check = "authored-event", id = row.GetProperty("id").GetString(), choice = id,
-            thresholds = true, staleGuard = true, nativeButton = true, exactEffects = true, duplicateSuppressed = true });
+        Require(EventStats() == (expectedGold, expectedHp) && model.Description.GetFormattedText() == text
+            && model.CurrentOptions.SequenceEqual(options) && model.IsFinished == (next == null), "Old/sibling options replayed or changed the event.");
+        Checks.Add(new { check = "authored-event", id = row.GetProperty("id").GetString(), page, choice = id, next,
+            thresholds = true, staleGuard = true, nativeButton = true, exactEffects = true, duplicateSuppressed = true, pageText = true });
     }
     private static async Task LockedEvent(EventModel model, string choice)
     {
@@ -126,12 +177,12 @@
         await Tree.ToSignal(Tree, SceneTree.SignalName.ProcessFrame);
         Require(!option.WasChosen && !model.IsFinished && EventStats() == before, "Locked event choice executed or charged resources.");
     }
-    private static async Task EventLeave(JsonElement row)
+    private static async Task EventLeave(JsonElement row, string page)
     {
-        await EventStats(0, 1); var model = await EventRoom(row); var before = EventStats();
+        await EventStats(0, 1); var model = await EventPage(row, page); var before = EventStats();
         await ClickEvent(model, "Leave");
         Require(EventStats() == before, "Leave changed event resources.");
-        Checks.Add(new { check = "event-leave", id = row.GetProperty("id").GetString(), alwaysAvailable = true, unchanged = true });
+        Checks.Add(new { check = "event-leave", id = row.GetProperty("id").GetString(), page, alwaysAvailable = true, unchanged = true });
     }
     private static async Task ReloadEventCheckpoint()
     {
@@ -142,13 +193,12 @@
         await RunManager.Instance.SetUpSavedSingleplayer(restored, save.SaveData!);
         await NGame.Instance!.LoadRun(restored, save.SaveData!.PreFinishedRoom);
     }
-    private static async Task EventResume(JsonElement row)
+    private static async Task EventResume(JsonElement row, string page)
     {
-        var choice = row.GetProperty("choices")[0]; var id = choice.GetProperty("id").GetString()!;
         // Each checkpoint control gets its own map/run, regardless of library size.
         await NGame.Instance!.ReturnToMainMenu();
         await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
-            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-EVENT-CHECKPOINT-" + row.GetProperty("id").GetString(), GameMode.Standard, 0);
+            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-EVENT-CHECKPOINT-" + row.GetProperty("id").GetString() + "-" + page, GameMode.Standard, 0);
         Run.ExtraFields.StartedWithNeow = true;
         await EventStats(300, 100);
         // Debug rooms do not update the saved map position. Select a known event
@@ -167,14 +217,20 @@
             await ReloadEventCheckpoint();
             var model = await EventReady();
             Require(EventStats() == checkpoint, "Initial event checkpoint changed resources: " + checkpoint + " / " + EventStats());
-            Require(model.Id == Event(row).Id && !EventOption(model, id).IsLocked, "Resumed event identity/options differ.");
-            await ClickEvent(model, id);
+            Require(model.Id == Event(row).Id && model.Description.GetFormattedText() == row.GetProperty("body").GetString(), "Resumed event identity/initial page differs.");
+            await NavigateEvent(model, row, page);
+            // A branch is transient: reloading before its terminal outcome returns to INITIAL.
+            await ReloadEventCheckpoint(); model = await EventReady();
+            Require(EventStats() == checkpoint && model.Description.GetFormattedText() == row.GetProperty("body").GetString(), "Branch checkpoint did not restore INITIAL/resources.");
+            await NavigateEvent(model, row, page);
+            await FinishEvent(model, row, page);
             var outcome = EventStats();
             // Interrupt before leaving; the native checkpoint must restore the pre-choice state.
             await ReloadEventCheckpoint();
             model = await EventReady();
-            Require(EventStats() == checkpoint, "Interrupted visit kept rewards from an uncommitted choice.");
-            await ClickEvent(model, id);
+            Require(EventStats() == checkpoint && model.Description.GetFormattedText() == row.GetProperty("body").GetString(), "Interrupted visit kept a branch or uncommitted rewards.");
+            await NavigateEvent(model, row, page);
+            await FinishEvent(model, row, page);
             Require(EventStats() == outcome, "Replayed checkpoint duplicated event rewards.");
             var next = Run.CurrentMapPoint!.Children.First();
             next.PointType = MegaCrit.Sts2.Core.Map.MapPointType.RestSite;
@@ -182,7 +238,7 @@
             await ReloadEventCheckpoint();
             await Wait(() => Run.CurrentRoom != null, "Saved next room did not arrive.");
             Require(EventStats() == outcome && Run.CurrentRoom is not MegaCrit.Sts2.Core.Rooms.EventRoom, "Completed visit did not persist after leaving.");
-            Checks.Add(new { check = "event-resume", id = row.GetProperty("id").GetString(), initialCheckpoint = true,
+            Checks.Add(new { check = "event-resume", id = row.GetProperty("id").GetString(), page, branchRollback = true, initialCheckpoint = true,
                 interruptedRollback = true, replayNoDuplicate = true, completedPersistence = true });
         } finally { ForceEventRoll = false; }
     }
