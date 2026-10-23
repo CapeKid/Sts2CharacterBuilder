@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "kind": "native-branching-events",
+  "character": "CrossroadsTrial",
+  "toolkit_commit": "4399cb44b0e71912b85515a63209ee44d2f616b5",
+  "game": {
+    "commit": "41cef1ea",
+    "version": "v0.111.0",
+    "date": "2026-08-13T17:39:18-07:00",
+    "branch": "v0.111.0",
+    "main_assembly_hash": 222455745
+  },
+  "target": "public-beta",
+  "process_exit": 0,
+  "replayed": false,
+  "independent_copies": true,
+  "protocol": {
+    "sample": "builder/examples/crossroads/events.json",
+    "sample_canonical_json_sha256": "ed788eaeeebca53526d86b7a0b9108bb97a13c796328f8176740622bd5e8500b",
+    "fixture_events_canonical_json_sha256": "13187c899586762371627a99dc7ae3e998b3affb2994c9d1d6cf94a210bc8d93",
+    "timeout_seconds": 600,
+    "prior_attempts": [
+      {
+        "outcome": "interrupted-before-gameplay",
+        "reason": "Steam was not running"
+      },
+      {
+        "outcome": "failed",
+        "reason": "Card runner assumed combat after event checkpoints; fixed before this fresh project/lab",
+        "event_controls_passed": true
+      }
+    ],
+    "no_lab_replayed": true
+  },
+  "authored_events": [
+    {
+      "id": "Crossroads",
+      "pages": [
+        "INITIAL",
+        "Camp",
+        "Trail",
+        "Shelter"
+      ],
+      "choice_count": 8
+    },
+    {
+      "id": "QuietCamp",
+      "pages": [
+        "INITIAL"
+      ],
+      "choice_count": 3
+    }
+  ],
+  "check_count": 68,
+  "executed_check_count": 62,
+  "skipped_sentinel_count": 6,
+  "executed_checks": {
+    "native-io": 1,
+    "registration": 1,
+    "starting-kit": 1,
+    "starter-trigger": 1,
+    "authored-event": 11,
+    "event-leave": 5,
+    "event-resume": 5,
+    "event-pools": 1,
+    "card-portrait": 16,
+    "paid-card": 16,
+    "resource-turn": 1,
+    "reward-pool": 1,
+    "rewards-shop": 1,
+    "native-save-resume": 1
+  },
+  "skipped_sentinels": {
+    "selection-controls": 1,
+    "presentation-controls": 1,
+    "audio-controls": 1,
+    "dialogue-controls": 1,
+    "sprite-integration": 1,
+    "item-pools": 1
+  },
+  "event_checks": [
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "INITIAL",
+      "choice": "AskCamp",
+      "next": "Camp",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "INITIAL",
+      "choice": "AskTrail",
+      "next": "Trail",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "Crossroads",
+      "page": "INITIAL",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "Crossroads",
+      "page": "INITIAL",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Camp",
+      "choice": "Directions",
+      "next": "Shelter",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Camp",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "Crossroads",
+      "page": "Camp",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "Crossroads",
+      "page": "Camp",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Trail",
+      "choice": "Directions",
+      "next": "Shelter",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Trail",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "Crossroads",
+      "page": "Trail",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "Crossroads",
+      "page": "Trail",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Shelter",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "Crossroads",
+      "page": "Shelter",
+      "choice": "Listen",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "Crossroads",
+      "page": "Shelter",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "Crossroads",
+      "page": "Shelter",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Rest",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Exchange",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "event-pools",
+      "characterOnly": true,
+      "soloOnly": true,
+      "actsVerified": true
+    }
+  ],
+  "package": {
+    "sha256": "f9876d4d2d396603770a6b6747280dc3b2479b5fae71307329a968db147801ee",
+    "payload_files": 7,
+    "probe_and_authoring_data_excluded": true
+  },
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Headless native text/button checks are not human layout or controller review",
+    "Owned public-beta v0.111.0 only; regular branch and broader release gates remain",
+    "Bounded acyclic navigation only; conditional/effectful navigation, combat and item/card event rewards require extensions"
+  ],
+  "input_sha256": "4602c887584a07a8ac7ba1fae31a4cf45cb6ca2b6041340c9c9da96c46c5abb2",
+  "source_sha256": "62a65601ae673c234ededc04ac1640baf5f585cc2e81c93b3cba812088b6d909",
+  "release_dll_sha256": "f69ef1c0b7d9c6fc273bf8776a8a67d319807f47b08a65dcd614d464fab64ba2",
+  "test_dll_sha256": "afa86bd4469a99e4d82c4b61d354ea584d7b1b86e78b60ec18760995bdd252fa",
+  "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+  "probe_source_sha256": "b27bef0892efbf6ecd8a9a5ebe9130cfd3106f48bc7eb85af077036db5652f28"
+}
