@@ -42,13 +42,13 @@ internal static class CharacterDialogue
 
     private static string Prefix => @MOD_ID@ + ".BUILDER_DIALOGUE.";
     private static string Key(JsonElement row, int index) => Prefix + row.GetProperty("ancient").GetString() + "." + row.GetProperty("visit").GetString() + "." + index;
-    private static void Install(JsonElement row)
+    private static void Install(JsonElement row, LocManager manager)
     {
         var lines = row.GetProperty("lines").EnumerateArray().ToArray();
         JsonElement[]? localized = null;
         if (row.TryGetProperty("translations", out var variants))
             foreach (var variant in variants.EnumerateArray())
-                if (variant.GetProperty("language").GetString() == LocManager.Instance.Language)
+                if (variant.GetProperty("language").GetString() == manager.Language)
                     localized = variant.GetProperty("lines").EnumerateArray().ToArray();
         var entries = new Dictionary<string, string>();
         for (var i = 0; i < lines.Length; i++) {
@@ -59,12 +59,12 @@ internal static class CharacterDialogue
                 entries[key + ".next"] = localized != null && localized[i].TryGetProperty("next", out var label) ? label.GetString()!
                     : lines[i].TryGetProperty("next", out var english) ? english.GetString()! : "Continue";
         }
-        LocManager.Instance.GetTable("ancients").MergeWith(entries);
+        manager.GetTable("ancients").MergeWith(entries);
     }
-    private static void RestoreLocalization()
+    private static void RestoreLocalization(LocManager __instance)
     {
         // Restore owned keys before locale-change listeners observe fresh tables.
-        foreach (var row in Rows.EnumerateArray()) Install(row);
+        foreach (var row in Rows.EnumerateArray()) Install(row, __instance);
     }
     private static IEnumerable<Node> Nodes(Node root)
     {
@@ -72,9 +72,9 @@ internal static class CharacterDialogue
         foreach (var child in root.GetChildren()) foreach (var node in Nodes(child)) yield return node;
     }
     private static bool Owned(AncientDialogueLine line) => line.LineText?.LocEntryKey.StartsWith(Prefix, StringComparison.Ordinal) == true;
-    private static void RefreshVisibleDialogue()
+    private static void RefreshVisibleDialogue(LocManager __instance)
     {
-        if (Engine.GetMainLoop() is not SceneTree tree) return;
+        if (!ReferenceEquals(LocManager.Instance, __instance) || Engine.GetMainLoop() is not SceneTree tree) return;
         var nodes = Nodes(tree.Root).ToArray();
         foreach (var node in nodes.OfType<NAncientDialogueLine>().Where(n => n.IsInsideTree())) {
             var line = (AncientDialogueLine)AccessTools.Field(typeof(NAncientDialogueLine), "_line").GetValue(node)!;
@@ -96,7 +96,7 @@ internal static class CharacterDialogue
             if (row.GetProperty("ancient").GetString() != identity.Entry || row.GetProperty("visit").GetString() != visit) continue;
             var lines = row.GetProperty("lines").EnumerateArray().ToArray();
             var dialogue = new AncientDialogue(lines.Select(_ => "").ToArray()) { VisitIndex = charVisits <= 0 ? 0 : 1, IsRepeating = charVisits > 0 };
-            Install(row);
+            Install(row, LocManager.Instance);
             for (var i = 0; i < lines.Length; i++) {
                 var key = Key(row, i);
                 var line = dialogue.Lines[i];
