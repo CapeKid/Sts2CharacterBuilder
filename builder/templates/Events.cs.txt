@@ -50,13 +50,20 @@ public abstract class AuthoredEvent : CustomEventModel
     private static string Rules(JsonElement choice)
     {
         var cost = choice.GetProperty("cost"); var reward = choice.GetProperty("reward");
-        return string.Join(" NL ", new[] {
+        var conditions = choice.TryGetProperty("requires", out var required) ? required.EnumerateObject().Select(r => r.Name switch {
+            "min_gold" => $"Requires at least {r.Value.GetInt32()} Gold.",
+            "max_gold" => $"Requires at most {r.Value.GetInt32()} Gold.",
+            "min_hp_percent" => $"Requires at least {r.Value.GetInt32()}% of maximum HP.",
+            "max_hp_percent" => $"Requires at most {r.Value.GetInt32()}% of maximum HP.",
+            _ => throw new InvalidDataException("Unknown event condition.")
+        }) : [];
+        return string.Join(" NL ", conditions.Concat(new[] {
             cost.GetProperty("gold").GetInt32() is > 0 and var goldCost ? $"Pay {goldCost} Gold." : null,
             cost.GetProperty("hp").GetInt32() is > 0 and var hpCost ? $"Lose {hpCost} HP (must leave at least 1 HP)." : null,
             reward.GetProperty("gold").GetInt32() is > 0 and var gold ? $"Gain {gold} Gold." : null,
             reward.GetProperty("heal").GetInt32() is > 0 and var heal ? $"Heal {heal} HP." : null,
             choice.TryGetProperty("next", out _) ? "Continue." : null
-        }.Where(s => s != null));
+        }.Where(s => s != null)!));
     }
     public override List<(string,string)> Localization
     {
@@ -80,7 +87,18 @@ public abstract class AuthoredEvent : CustomEventModel
         }
     }
     private bool CanAfford(JsonElement choice) => Owner != null && Owner.Gold >= choice.GetProperty("cost").GetProperty("gold").GetInt32()
-        && Owner.Creature.CurrentHp > choice.GetProperty("cost").GetProperty("hp").GetInt32();
+        && Owner.Creature.CurrentHp > choice.GetProperty("cost").GetProperty("hp").GetInt32() && MeetsConditions(choice);
+    private bool MeetsConditions(JsonElement choice)
+    {
+        if (!choice.TryGetProperty("requires", out var required)) return true;
+        return required.EnumerateObject().All(r => r.Name switch {
+            "min_gold" => Owner.Gold >= r.Value.GetInt32(),
+            "max_gold" => Owner.Gold <= r.Value.GetInt32(),
+            "min_hp_percent" => Owner.Creature.CurrentHp * 100 >= Owner.Creature.MaxHp * r.Value.GetInt32(),
+            "max_hp_percent" => Owner.Creature.CurrentHp * 100 <= Owner.Creature.MaxHp * r.Value.GetInt32(),
+            _ => false
+        });
+    }
     protected override IReadOnlyList<EventOption> GenerateInitialOptions() => Options("INITIAL");
     private IReadOnlyList<EventOption> Options(string page)
     {
