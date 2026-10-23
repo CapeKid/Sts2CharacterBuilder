@@ -34,20 +34,84 @@
                 var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == row.GetProperty("ancient").GetString());
                 var visits = row.GetProperty("visit").GetString() == "first" ? 0 : 100;
                 var selected = ancient.DialogueSet.GetValidDialogues(own, visits, 0, false).Single();
-                Require(selected.Lines.Select(l => l.LineText!.GetFormattedText()).SequenceEqual(
-                    row.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("text").GetString())), "English fallback after language change differs.");
+                CheckDialogueModel(row, selected.Lines, other);
             }
         } finally { loc.SetLanguage(language); }
         CheckInlineLocalization();
         Checks.Add(new { check = "dialogue-controls", foreignUnchanged = true, omittedUnchanged = true, untaggedUnchanged = true,
-            lateRepeat = true, firstEver = true, localeSwitchFallback = other, inlineLocalizationPreserved = true });
-        foreach (var row in Request.GetProperty("dialogue").EnumerateArray()) await DialogueEncounter(row);
+            lateRepeat = true, firstEver = true, localeSwitch = other, inlineLocalizationPreserved = true });
+        var observer = new Harmony(typeof(ModEntry).Namespace + ".dialogue-sfx-observer");
+        observer.Patch(AccessTools.Method(typeof(NAncientDialogueLine), nameof(NAncientDialogueLine.PlaySfx)),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(CountDialogueSfx)));
+        try {
+            foreach (var row in Request.GetProperty("dialogue").EnumerateArray())
+                foreach (var locale in DialogueLocales(row)) {
+                    loc.SetLanguage(locale); CheckInlineLocalization();
+                    await DialogueEncounter(row, locale);
+                }
+        } finally { loc.SetLanguage(language); observer.UnpatchAll(observer.Id); }
 #else
         await Task.CompletedTask;
         Checks.Add(new { check = "dialogue-controls", skipped = true, reason = "No authored dialogue" });
 #endif
     }
 #if BUILDER_AUTHORED_DIALOGUE
+    private static int DialogueSfxCalls;
+    private static void CountDialogueSfx() => DialogueSfxCalls++;
+    private static void CheckLiveDialogueLocale(JsonElement row, NAncientEventLayout layout, string language)
+    {
+        if (!row.TryGetProperty("translations", out _)) return;
+        var loc = MegaCrit.Sts2.Core.Localization.LocManager.Instance;
+        var other = DialogueLocales(row).First(l => l != language);
+        var index = DialogueIndex(layout); var currentLines = DialogueLines(layout).ToArray(); var sfx = DialogueSfxCalls;
+        try {
+            loc.SetLanguage(other); CheckInlineLocalization(); CheckRenderedDialogue(row, layout, other);
+            Require(DialogueIndex(layout) == index && DialogueLines(layout).SequenceEqual(currentLines), "Locale switch replayed or replaced the conversation.");
+        } finally { loc.SetLanguage(language); }
+        CheckRenderedDialogue(row, layout, language);
+        Require(DialogueIndex(layout) == index && DialogueSfxCalls == sfx, "Locale switch advanced dialogue or replayed sound.");
+    }
+    private static string[] DialogueLocales(JsonElement row)
+    {
+        if (!row.TryGetProperty("translations", out var variants)) return ["eng"];
+        var languages = variants.EnumerateArray().Select(t => t.GetProperty("language").GetString()!).Append("eng").ToHashSet(StringComparer.Ordinal);
+        Require(languages.All(l => MegaCrit.Sts2.Core.Localization.LocManager.Languages.Contains(l)), "Authored locale unavailable on this game build.");
+        var fallback = MegaCrit.Sts2.Core.Localization.LocManager.Languages.OrderBy(l => l, StringComparer.Ordinal).FirstOrDefault(l => !languages.Contains(l));
+        if (fallback != null) languages.Add(fallback);
+        return languages.OrderBy(l => l, StringComparer.Ordinal).ToArray();
+    }
+    private static string DialogueText(JsonElement row, string language, int index, string field)
+    {
+        if (row.TryGetProperty("translations", out var variants))
+            foreach (var variant in variants.EnumerateArray())
+                if (variant.GetProperty("language").GetString() == language && variant.GetProperty("lines")[index].TryGetProperty(field, out var translated))
+                    return translated.GetString()!;
+        return row.GetProperty("lines")[index].TryGetProperty(field, out var english) ? english.GetString()! : "Continue";
+    }
+    private static void CheckDialogueModel(JsonElement row, IReadOnlyList<AncientDialogueLine> lines, string language)
+    {
+        var expected = row.GetProperty("lines");
+        Require(lines.Count == expected.GetArrayLength(), "Translated dialogue line count differs.");
+        for (int i = 0; i < lines.Count; i++) {
+            Require(lines[i].LineText!.GetFormattedText() == DialogueText(row, language, i, "text")
+                && lines[i].Speaker.ToString() == expected[i].GetProperty("speaker").GetString(), "Dialogue text/speaker differs for " + language);
+            if (i < lines.Count - 1) Require(lines[i].NextButtonText!.GetFormattedText() == DialogueText(row, language, i, "next"), "Translated next label differs.");
+        }
+    }
+    private static void CheckRenderedDialogue(JsonElement row, NAncientEventLayout layout, string language)
+    {
+        CheckDialogueModel(row, DialogueLines(layout), language);
+        var container = (VBoxContainer)AccessTools.Field(typeof(NAncientEventLayout), "_dialogueContainer").GetValue(layout)!;
+        var nodes = container.GetChildren().OfType<NAncientDialogueLine>().ToArray();
+        Require(nodes.Length == row.GetProperty("lines").GetArrayLength(), "Rendered dialogue node count differs.");
+        for (int i = 0; i < nodes.Length; i++)
+            Require(nodes[i].GetNode<MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel>("%Text").Text == DialogueText(row, language, i, "text"), "Rendered dialogue label differs for " + language);
+        var index = DialogueIndex(layout);
+        if (index < nodes.Length - 1) {
+            var label = (MegaCrit.Sts2.addons.mega_text.MegaLabel)AccessTools.Field(typeof(NAncientEventLayout), "_fakeNextButtonLabel").GetValue(layout)!;
+            Require(label.Text == DialogueText(row, language, index, "next"), "Rendered next label differs for " + language);
+        }
+    }
     private static void CheckInlineLocalization()
     {
         Require(new MegaCrit.Sts2.Core.Localization.LocString("characters", ModelDb.Character<Character>().Id.Entry + ".title").Exists(), "Character title lost after locale reload.");
@@ -72,17 +136,13 @@
     private static List<AncientDialogueLine> DialogueLines(NAncientEventLayout layout) =>
         (List<AncientDialogueLine>)AccessTools.Field(typeof(NAncientEventLayout), "_dialogue").GetValue(layout)!;
     private static int DialogueIndex(NAncientEventLayout layout) => (int)AccessTools.Field(typeof(NAncientEventLayout), "_currentDialogueLine").GetValue(layout)!;
-    private static async Task CheckDialogue(JsonElement row, bool advance)
+    private static async Task CheckDialogue(JsonElement row, bool advance, string language)
     {
         var rows = row.GetProperty("lines").EnumerateArray().ToArray();
         await Wait(() => DialogueLayout() is {} l && DialogueLines(l).Count == rows.Length, "Ancient layout dialogue missing.");
         var layout = DialogueLayout()!; var lines = DialogueLines(layout);
-        for (var i = 0; i < rows.Length; i++) {
-            Require(lines[i].LineText!.GetFormattedText() == rows[i].GetProperty("text").GetString()
-                && lines[i].Speaker.ToString() == rows[i].GetProperty("speaker").GetString(), "Visible dialogue text/speaker differs.");
-            if (i < rows.Length - 1) Require(lines[i].NextButtonText!.GetFormattedText() ==
-                (rows[i].TryGetProperty("next", out var next) ? next.GetString() : "Continue"), "Dialogue next label differs.");
-        }
+        CheckRenderedDialogue(row, layout, language);
+        CheckLiveDialogueLocale(row, layout, language);
         if (!advance) return;
         Require(DialogueIndex(layout) == 0, "Dialogue did not start on first line.");
         for (var i = 1; i < rows.Length; i++) {
@@ -92,36 +152,43 @@
             hitbox.EmitSignal(NClickableControl.SignalName.Released, hitbox);
             var index = i;
             await Wait(() => DialogueIndex(layout) == index, "Dialogue advance failed.");
+            CheckRenderedDialogue(row, layout, language);
+            CheckLiveDialogueLocale(row, layout, language);
         }
         await Wait(() => layout.OptionButtons.Any(b => b.IsVisibleInTree() && b.IsEnabled), "Ancient reward options unavailable after dialogue.");
     }
-    private static async Task DialogueEncounter(JsonElement row)
+    private static async Task DialogueEncounter(JsonElement row, string language)
     {
         var entry = row.GetProperty("ancient").GetString()!; var visit = row.GetProperty("visit").GetString()!;
-        Progress("dialogue:" + entry + "/" + visit);
+        Progress("dialogue:" + entry + "/" + visit + "/" + language);
         await NGame.Instance!.ReturnToMainMenu();
         var ancient = ModelDb.AllAncients.Single(a => a.Id.Entry == entry);
         var stats = SaveManager.Instance.Progress.GetOrCreateAncientStats(ancient.Id);
         stats.CharStats.Clear();
         stats.CharStats.Add(new AncientCharacterStats { Character = ModelDb.Character<Character>().Id, Losses = visit == "first" ? 0 : 100 });
         await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
-            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-DIALOGUE-" + entry + visit, GameMode.Standard, 0);
+            ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-DIALOGUE-" + entry + visit + language, GameMode.Standard, 0);
         Run.ExtraFields.StartedWithNeow = true;
         var rooms = (RoomSet)AccessTools.Field(typeof(ActModel), "_rooms").GetValue(Run.Act)!;
         rooms.Ancient = ancient;
         var point = Run.Map.StartingMapPoint; point.PointType = MegaCrit.Sts2.Core.Map.MapPointType.Ancient;
         var rewards = ancient.AllPossibleOptions.Select(o => o.TextKey).ToArray();
         await RunManager.Instance.EnterMapCoord(point.coord);
-        await CheckDialogue(row, true);
+        await CheckDialogue(row, true, language);
         Require(rewards.SequenceEqual(ancient.AllPossibleOptions.Select(o => o.TextKey)), "Ancient reward catalog changed.");
-        Checks.Add(new { check = "authored-dialogue", ancient = entry, visit, visibleText = true, nativeAdvance = true, rewardsAvailable = true });
+        if (language == "eng") Checks.Add(new { check = "authored-dialogue", ancient = entry, visit, visibleText = true, nativeAdvance = true, rewardsAvailable = true });
+        if (row.TryGetProperty("translations", out _)) Checks.Add(new { check = "dialogue-locale", ancient = entry, visit, language,
+            visibleText = true, renderedLabels = true, nextLabels = true, speakersPreserved = true, liveSwitch = true, progressPreserved = true, noSoundReplay = true,
+            nativeAdvance = true, rewardsAvailable = true, inlineLocalizationPreserved = true });
         await NGame.Instance.ReturnToMainMenu();
         var saved = SaveManager.Instance.LoadRunSave();
         Require(saved.Success && saved.SaveData != null, "Ancient checkpoint missing.");
         var restored = RunState.FromSerializable(saved.SaveData!);
         await RunManager.Instance.SetUpSavedSingleplayer(restored, saved.SaveData!);
         await NGame.Instance.LoadRun(restored, saved.SaveData!.PreFinishedRoom);
-        await CheckDialogue(row, true);
-        Checks.Add(new { check = "dialogue-resume", ancient = entry, visit, nativeCheckpoint = true, replayFromStart = true });
+        await CheckDialogue(row, true, language);
+        if (language == "eng") Checks.Add(new { check = "dialogue-resume", ancient = entry, visit, nativeCheckpoint = true, replayFromStart = true });
+        if (row.TryGetProperty("translations", out _)) Checks.Add(new { check = "dialogue-locale-resume", ancient = entry, visit, language,
+            nativeCheckpoint = true, replayFromStart = true, renderedLabels = true, nativeAdvance = true, rewardsAvailable = true });
     }
 #endif

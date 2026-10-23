@@ -1,20 +1,121 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "array", "maxItems": 16,
+  "type": "array",
+  "maxItems": 16,
   "items": {
-    "type": "object", "additionalProperties": false,
-    "required": ["ancient", "visit", "lines"],
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ancient",
+      "visit",
+      "lines"
+    ],
     "properties": {
-      "ancient": {"type": "string", "enum": ["NEOW", "DARV", "TEZCATARA", "OROBAS", "PAEL", "NONUPEIPE", "TANX", "VAKUU"]},
-      "visit": {"type": "string", "enum": ["first", "repeat"]},
+      "ancient": {
+        "type": "string",
+        "enum": [
+          "NEOW",
+          "DARV",
+          "TEZCATARA",
+          "OROBAS",
+          "PAEL",
+          "NONUPEIPE",
+          "TANX",
+          "VAKUU"
+        ]
+      },
+      "visit": {
+        "type": "string",
+        "enum": [
+          "first",
+          "repeat"
+        ]
+      },
       "lines": {
-        "type": "array", "minItems": 1, "maxItems": 12,
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 12,
         "items": {
-          "type": "object", "additionalProperties": false, "required": ["speaker", "text"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "speaker",
+            "text"
+          ],
           "properties": {
-            "speaker": {"type": "string", "enum": ["Ancient", "Character"]},
-            "text": {"type": "string", "minLength": 1, "maxLength": 1000},
-            "next": {"type": "string", "minLength": 1, "maxLength": 80}
+            "speaker": {
+              "type": "string",
+              "enum": [
+                "Ancient",
+                "Character"
+              ]
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "next": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          }
+        }
+      },
+      "translations": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 15,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "language",
+            "lines"
+          ],
+          "properties": {
+            "language": {
+              "type": "string",
+              "enum": [
+                "deu",
+                "esp",
+                "fra",
+                "ind",
+                "ita",
+                "jpn",
+                "kor",
+                "pol",
+                "ptb",
+                "rus",
+                "spa",
+                "tha",
+                "tur",
+                "zhs",
+                "zht"
+              ]
+            },
+            "lines": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "next": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                }
+              }
+            }
           }
         }
       }

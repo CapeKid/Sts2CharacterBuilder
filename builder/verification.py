@@ -6,7 +6,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from .contracts import BuilderError, contained, digest, encoded, event_pages, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
+from .contracts import BuilderError, contained, dialogue_locales, digest, encoded, event_pages, input_hash, load_audio, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from .project import OPTIONAL, STEPS, atomic, generate, run
 
 
@@ -158,6 +158,18 @@ def native_evidence(toolkit, root):
             if check.get('next') != choice.get('next'):
                 raise BuilderError('Native evidence has wrong branching event destination')
     dialogue = load_dialogue(toolkit, root, config)
+    locale_fields = {
+        'dialogue-locale': ('visibleText', 'renderedLabels', 'nextLabels', 'speakersPreserved', 'liveSwitch', 'progressPreserved',
+                            'noSoundReplay', 'nativeAdvance', 'rewardsAvailable', 'inlineLocalizationPreserved'),
+        'dialogue-locale-resume': ('nativeCheckpoint', 'replayFromStart', 'renderedLabels', 'nativeAdvance', 'rewardsAvailable'),
+    }
+    expected_locales = {(r['ancient'], r['visit'], language) for r in dialogue for language in dialogue_locales(toolkit, r)}
+    for label, fields in locale_fields.items():
+        checks = [c for c in receipt.get('checks', []) if c.get('check') == label]
+        actual = [(c.get('ancient'), c.get('visit'), c.get('language')) for c in checks]
+        if (set(actual) != expected_locales or len(actual) != len(expected_locales)
+                or any(c.get(field) is not True for c in checks for field in fields)):
+            raise BuilderError(f'Native evidence does not cover every {label} case')
     for label in ('authored-dialogue', 'dialogue-resume'):
         actual = [(c.get('ancient'), c.get('visit')) for c in receipt.get('checks', []) if c.get('check') == label]
         expected_dialogue = {(r['ancient'], r['visit']) for r in dialogue}
