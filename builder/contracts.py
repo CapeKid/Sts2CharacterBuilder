@@ -148,6 +148,10 @@ def load_items(toolkit, root, config=None):
     return items
 
 
+def event_pages(event):
+    return [dict(id='INITIAL', body=event['body'], choices=event['choices']), *event.get('pages', [])]
+
+
 def load_events(toolkit, root, config=None):
     path = contained(root, 'design/events.json')
     events = read_json(path) if path.exists() else []
@@ -164,12 +168,45 @@ def load_events(toolkit, root, config=None):
     for event in events:
         if len(event['acts']) != len(set(event['acts'])):
             raise BuilderError(f'{event["id"]}: duplicate act eligibility')
-        unique(event['choices'], f'{event["id"]} choice')
-        for choice in event['choices']:
-            if choice['id'].replace('_', '').casefold() == 'leave':
-                raise BuilderError('Leave is reserved for the always-available exit')
-            if not any(choice['cost'].values()) and not any(choice['reward'].values()):
-                raise BuilderError(f'{event["id"]}/{choice["id"]}: choice needs a supported cost or reward')
+        pages = event_pages(event)
+        unique(pages, f'{event["id"]} page')
+        known = {p['id'] for p in pages}
+        for page in event.get('pages', []):
+            key = page['id'].replace('_', '').casefold()
+            if key in {'initial', 'left', 'result'} or key.startswith('result'):
+                raise BuilderError(f'{event["id"]}: reserved event page ID')
+        edges = {}
+        for page in pages:
+            unique(page['choices'], f'{event["id"]}/{page["id"]} choice')
+            edges[page['id']] = []
+            for choice in page['choices']:
+                if choice['id'].replace('_', '').casefold() == 'leave':
+                    raise BuilderError('Leave is reserved for the always-available exit')
+                if ('next' in choice) == ('result' in choice):
+                    raise BuilderError(f'{event["id"]}: choice needs exactly one of next or result')
+                effects = any(choice['cost'].values()) or any(choice['reward'].values())
+                if 'next' in choice:
+                    if choice['next'] not in known:
+                        raise BuilderError(f'{event["id"]}: unknown next event page')
+                    if effects:
+                        raise BuilderError(f'{event["id"]}: navigation choices must have zero costs and rewards')
+                    edges[page['id']].append(choice['next'])
+                elif not effects:
+                    raise BuilderError(f'{event["id"]}/{choice["id"]}: choice needs a supported cost or reward')
+        visited, active = set(), set()
+        def visit(page):
+            if page in active:
+                raise BuilderError(f'{event["id"]}: event page cycle')
+            if page in visited:
+                return
+            active.add(page)
+            for target in edges[page]:
+                visit(target)
+            active.remove(page)
+            visited.add(page)
+        visit('INITIAL')
+        if visited != known:
+            raise BuilderError(f'{event["id"]}: unreachable event page')
     return events
 
 

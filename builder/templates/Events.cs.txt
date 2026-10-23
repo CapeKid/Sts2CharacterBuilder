@@ -29,6 +29,13 @@ public abstract class AuthoredEvent : CustomEventModel
     protected AuthoredEvent() : base(true) { }
     private JsonElement Row => EventData.Rows[GetType().Name[6..]];
     private bool Resolved;
+    private string CurrentPage = "INITIAL";
+    private int Revision;
+    private IEnumerable<(string Id, JsonElement Row)> Pages() =>
+        new[] { ("INITIAL", Row) }.Concat(Row.TryGetProperty("pages", out var pages)
+            ? pages.EnumerateArray().Select(p => (p.GetProperty("id").GetString()!, p)) : []);
+    private JsonElement Page(string id) => Pages().Single(p => p.Id == id).Row;
+    private static string ResultPage(string page, string choice) => page == "INITIAL" ? "RESULT_" + choice : "RESULT." + page + "." + choice;
     public override bool IsShared => false;
     public override ActModel[] Acts => ModelDb.ActsByIndex
         .Where((_, index) => Row.GetProperty("acts").EnumerateArray().Any(a => a.GetInt32() == index + 1))
@@ -47,50 +54,64 @@ public abstract class AuthoredEvent : CustomEventModel
             cost.GetProperty("gold").GetInt32() is > 0 and var goldCost ? $"Pay {goldCost} Gold." : null,
             cost.GetProperty("hp").GetInt32() is > 0 and var hpCost ? $"Lose {hpCost} HP (must leave at least 1 HP)." : null,
             reward.GetProperty("gold").GetInt32() is > 0 and var gold ? $"Gain {gold} Gold." : null,
-            reward.GetProperty("heal").GetInt32() is > 0 and var heal ? $"Heal {heal} HP." : null
+            reward.GetProperty("heal").GetInt32() is > 0 and var heal ? $"Heal {heal} HP." : null,
+            choice.TryGetProperty("next", out _) ? "Continue the conversation." : null
         }.Where(s => s != null));
     }
     public override List<(string,string)> Localization
     {
         get {
             var lines = new List<(string,string)> {
-                ("title", Row.GetProperty("name").GetString()!), ("pages.INITIAL.description", Row.GetProperty("body").GetString()!),
-                ("pages.INITIAL.options.Leave.title", "Leave"), ("pages.INITIAL.options.Leave.description", "Continue your journey."),
-                ("pages.LEFT.description", "You continue on your way.")
+                ("title", Row.GetProperty("name").GetString()!), ("pages.LEFT.description", "You continue on your way.")
             };
-            foreach (var choice in Row.GetProperty("choices").EnumerateArray()) {
-                var id = choice.GetProperty("id").GetString();
-                lines.Add(($"pages.INITIAL.options.{id}.title", choice.GetProperty("name").GetString()!));
-                lines.Add(($"pages.INITIAL.options.{id}.description", Rules(choice)));
-                lines.Add(($"pages.RESULT_{id}.description", choice.GetProperty("result").GetString()!));
+            foreach (var (page, row) in Pages()) {
+                lines.Add(($"pages.{page}.description", row.GetProperty("body").GetString()!));
+                lines.Add(($"pages.{page}.options.Leave.title", "Leave"));
+                lines.Add(($"pages.{page}.options.Leave.description", "Continue your journey."));
+                foreach (var choice in row.GetProperty("choices").EnumerateArray()) {
+                    var id = choice.GetProperty("id").GetString()!;
+                    lines.Add(($"pages.{page}.options.{id}.title", choice.GetProperty("name").GetString()!));
+                    lines.Add(($"pages.{page}.options.{id}.description", Rules(choice)));
+                    if (choice.TryGetProperty("result", out var result))
+                        lines.Add(($"pages.{ResultPage(page, id)}.description", result.GetString()!));
+                }
             }
             return lines;
         }
     }
     private bool CanAfford(JsonElement choice) => Owner != null && Owner.Gold >= choice.GetProperty("cost").GetProperty("gold").GetInt32()
         && Owner.Creature.CurrentHp > choice.GetProperty("cost").GetProperty("hp").GetInt32();
-    protected override IReadOnlyList<EventOption> GenerateInitialOptions()
+    protected override IReadOnlyList<EventOption> GenerateInitialOptions() => Options("INITIAL");
+    private IReadOnlyList<EventOption> Options(string page)
     {
         var options = new List<EventOption>();
-        foreach (var choice in Row.GetProperty("choices").EnumerateArray()) {
+        var revision = Revision;
+        foreach (var choice in Page(page).GetProperty("choices").EnumerateArray()) {
             var captured = choice;
-            var option = new EventOption(this, CanAfford(choice) ? () => Resolve(captured) : null,
-                $"{Id.Entry}.pages.INITIAL.options.{choice.GetProperty("id").GetString()}");
+            var option = new EventOption(this, CanAfford(choice) ? () => Resolve(page, revision, captured) : null,
+                $"{Id.Entry}.pages.{page}.options.{choice.GetProperty("id").GetString()}");
             if (choice.GetProperty("cost").GetProperty("hp").GetInt32() is > 0 and var hp) option.ThatDoesDamage(hp);
             options.Add(option);
         }
-        options.Add(new EventOption(this, Leave, $"{Id.Entry}.pages.INITIAL.options.Leave"));
+        options.Add(new EventOption(this, () => Leave(revision), $"{Id.Entry}.pages.{page}.options.Leave"));
         return options;
     }
-    private Task Leave()
+    private Task Leave(int revision)
     {
-        if (!Resolved) { Resolved = true; SetEventFinished(PageDescription("LEFT")); }
+        if (!Resolved && revision == Revision) { Resolved = true; SetEventFinished(PageDescription("LEFT")); }
         return Task.CompletedTask;
     }
-    private async Task Resolve(JsonElement choice)
+    private void ShowPage(string page)
     {
-        if (Resolved) return;
-        if (!CanAfford(choice)) { SetEventState(InitialDescription, GenerateInitialOptions()); return; }
+        CurrentPage = page;
+        Revision++;
+        SetEventState(PageDescription(page), Options(page));
+    }
+    private async Task Resolve(string page, int revision, JsonElement choice)
+    {
+        if (Resolved || revision != Revision || page != CurrentPage) return;
+        if (!CanAfford(choice)) { ShowPage(page); return; }
+        if (choice.TryGetProperty("next", out var next)) { ShowPage(next.GetString()!); return; }
         Resolved = true; // Claim before awaited commands, across all options on this event instance.
         var player = Owner ?? throw new InvalidOperationException("Event has no owner.");
         var cost = choice.GetProperty("cost"); var reward = choice.GetProperty("reward");
@@ -99,7 +120,7 @@ public abstract class AuthoredEvent : CustomEventModel
             await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), player.Creature, hpCost, ValueProp.Unpowered | ValueProp.Unblockable, null, null);
         if (reward.GetProperty("gold").GetInt32() is > 0 and var gold) await PlayerCmd.GainGold(gold, player);
         if (reward.GetProperty("heal").GetInt32() is > 0 and var heal) await CreatureCmd.Heal(player.Creature, heal);
-        SetEventFinished(PageDescription("RESULT_" + choice.GetProperty("id").GetString()));
+        SetEventFinished(PageDescription(ResultPage(page, choice.GetProperty("id").GetString()!)));
     }
 }
 
