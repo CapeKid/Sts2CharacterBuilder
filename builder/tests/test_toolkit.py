@@ -13,7 +13,7 @@ from unittest.mock import patch
 import zipfile
 import zlib
 
-from builder.contracts import BuilderError, digest, encoded, event_pages, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
+from builder.contracts import BuilderError, dialogue_locales, digest, encoded, event_pages, input_hash, load_audio, audio_pcm, load_dialogue, load_events, load_items, load_playtests, load_presentation, load_sprites, read_json, validate
 from builder.project import atomic, bootstrap, generate, run, starter_cards
 from builder.verification import balance, build, compare_delivery, native_evidence, pin_check, record, resume, source_hash, stage, validate_playtest_evidence, verify
 from builder.publishing import check_publish, prepare_publish, publication
@@ -99,6 +99,10 @@ def authored_dialogue():
         for ancient, visit in [('NEOW', 'first'), ('NEOW', 'repeat'), ('DARV', 'first')]]
     rows[-1]['lines'] = [dict(speaker='Character', text='Let the next step speak for itself.')]
     return rows
+
+
+def translated_dialogue():
+    return read_json(REPO / 'builder/examples/translated-dialogue/dialogue.json')
 
 
 def authored_sprites():
@@ -1036,6 +1040,60 @@ class ToolkitTests(unittest.TestCase):
         with self.assertRaisesRegex(BuilderError, 'stale'):
             stage(self.toolkit, self.project)
 
+    def test_translated_dialogue_contract_and_fingerprint(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        rows = translated_dialogue()
+        atomic(self.project / 'design/dialogue.json', encoded(rows))
+        generate(self.toolkit, self.project, freeze=True)
+        self.assertEqual(dialogue_locales(self.toolkit, rows[0]), ['deu', 'eng', 'fra', 'jpn'])
+        self.assertEqual(dialogue_locales(self.toolkit, rows[1]), [])
+        self.assertEqual(load_dialogue(self.toolkit, self.project), rows)
+        before = input_hash(self.project)
+        self.edit('design/dialogue.json', lambda r: r[0]['translations'][0]['lines'][0].update(text='Changed translation'))
+        self.assertNotEqual(input_hash(self.project), before)
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
+        generate(self.toolkit, self.project)
+        for mutate in (
+            lambda r: r[0]['translations'].append(copy.deepcopy(r[0]['translations'][0])),
+            lambda r: r[0]['translations'][0].update(language='eng'),
+            lambda r: r[0]['translations'][0].update(language='fr'),
+            lambda r: r[0]['translations'][0].update(language='xxx'),
+            lambda r: r[0]['translations'][0]['lines'].pop(),
+            lambda r: r[0]['translations'][0].update(lines=[{}, {}, {}]),
+            lambda r: r[0]['translations'][0]['lines'][0].update(text=' '),
+            lambda r: r[0]['translations'][0]['lines'][0].update(speaker='Character'),
+            lambda r: r[0]['translations'][0]['lines'][-1].update(next='Rewards'),
+            lambda r: r[0].update(translations=[]),
+        ):
+            rows = translated_dialogue(); mutate(rows)
+            atomic(self.project / 'design/dialogue.json', encoded(rows))
+            with self.assertRaises(BuilderError): load_dialogue(self.toolkit, self.project)
+
+    def test_translated_dialogue_evidence_requires_every_locale_and_resume(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        rows = translated_dialogue()
+        atomic(self.project / 'design/dialogue.json', encoded(rows)); generate(self.toolkit, self.project)
+        receipt = self.mock_pool_evidence(); base = list(receipt['checks'])
+        extra = [dict(check=label, ancient=r['ancient'], visit=r['visit']) for r in rows for label in ('authored-dialogue','dialogue-resume')]
+        for r in rows:
+            for language in dialogue_locales(self.toolkit, r):
+                extra += [dict(check='dialogue-locale', ancient=r['ancient'], visit=r['visit'], language=language,
+                    visibleText=True, renderedLabels=True, nextLabels=True, speakersPreserved=True, liveSwitch=True,
+                    progressPreserved=True, noSoundReplay=True, nativeAdvance=True, rewardsAvailable=True, inlineLocalizationPreserved=True),
+                    dict(check='dialogue-locale-resume', ancient=r['ancient'], visit=r['visit'], language=language,
+                    nativeCheckpoint=True, replayFromStart=True, renderedLabels=True, nativeAdvance=True, rewardsAvailable=True)]
+        def publish(checks):
+            receipt['checks'] = base + checks; data = encoded(receipt)
+            atomic(self.project / 'private/translated-evidence.json', data)
+            atomic(self.project / '.builder/native-evidence.json', encoded(dict(path='private/translated-evidence.json', sha256=digest(data))))
+        publish(extra); self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        for invalid in ([c for c in extra if c.get('language') != 'deu'], extra+[extra[-1]],
+                        [c for c in extra if c.get('check') != 'dialogue-locale-resume'],
+                        [dict(c, noSoundReplay=False) if c['check']=='dialogue-locale' else c for c in extra],
+                        [dict(c, replayFromStart=False) if c['check']=='dialogue-locale-resume' else c for c in extra]):
+            publish(invalid)
+            with self.assertRaisesRegex(BuilderError, 'dialogue-locale'): native_evidence(self.toolkit, self.project)
+
     def test_dialogue_contract_and_optional_generation(self):
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
         invalid = [lambda r: r.append(copy.deepcopy(r[0])),
@@ -1441,7 +1499,7 @@ class ToolkitTests(unittest.TestCase):
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
-        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()))
+        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])

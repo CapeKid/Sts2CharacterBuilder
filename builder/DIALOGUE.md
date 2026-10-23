@@ -37,10 +37,14 @@ Ancient getter and replaces only the selected project's character/Ancient/visit
 combination. Omitted visits, unconfigured Ancients, anonymous sets and other
 characters retain the native result, including native empty behavior. Rewards,
 Ancient cards, encounters and eligibility are not replaced. English text is
-merged into namespaced keys in the active localization table on selection, so a
-language change still receives the authored English fallback. The character template also restores this assembly's inline model localization before native locale-change UI listeners run; character/card/item text survives switching languages and switching back. Translations,
-voice/SFX, custom Ancients, victory/ending text and The Architect's separate ending
+merged into namespaced keys in the active localization table on selection and before locale-change listeners run. Configured translations replace individual fields; other fields receive authored English fallback. The character template also restores this assembly's inline model localization before native locale-change UI listeners run; character/card/item text survives switching languages and switching back. Voice/SFX, custom Ancients, victory/ending text and The Architect's separate ending
 dialogue require project-owned extensions and separate evidence.
+
+A conversation can add `translations`, an array of `{ "language": "fra", "lines": [...] }` entries. Each lines array must have exactly the English line count and keeps the English speakers/order. A translated line can override `text`, `next`, both, or neither (`{}`). Missing text uses English text; missing labels use the English label or `Continue`. Blank strings, repeated locales, all-empty translations and final-line next labels are rejected. English remains in the base `lines`; do not add an `eng` translation. Bounds remain 1,000 characters per text and 80 per label.
+
+The pinned locale codes are `deu`, `esp`, `fra`, `ind`, `ita`, `jpn`, `kor`, `pol`, `ptb`, `rus`, `spa`, `tha`, `tur`, `zhs` and `zht`. They must exist in the selected owned build for native verification. Exact codes are used, with no language alias or regional fallback. The original [partial French/Japanese example](examples/translated-dialogue/dialogue.json) demonstrates field-level fallback and a separate English-only repeat conversation.
+
+An open authored conversation refreshes its rendered text and next label when language changes, preserving its line index, speakers and sound-call count. The refresh touches only this mod's dialogue keys; it adds no progress/save data or reward behavior. Other inline character/card/item text retains the existing English behavior. Human translation, font/layout and voice review remain separate.
 
 Dialogue data, generated code and toolkit pins participate in evidence hashes.
 Editing lines requires regeneration, a fresh build and a fresh native lab. Normal
@@ -52,7 +56,7 @@ The native suite checks first/repeat/late-repeat selection, other-character and
 omitted-content fallback against the unpatched native selector, anonymous empty
 sets, every authored conversation's visible text/speakers/next labels, native
 advance controls, reward-button access, and native checkpoint reload/replay.
-Reloading a checkpoint replays the conversation from its beginning; line position
+Translated conversations additionally run every configured locale, English and one unconfigured supported locale (if one remains). Checks inspect rendered labels, switch languages and back at every line without reselecting the conversation, preserve progress/sound calls, verify ordinary inline localization and replay each locale through the native checkpoint. Missing/duplicate/failed locale or locale-resume evidence is rejected. Reloading a checkpoint replays the conversation from its beginning; line position
 is not independently persisted. These synthetic solo fixtures do not establish
 campaign behavior, translated layout quality, physical controller usability or
 online co-op correctness. Keep those review gaps explicit.

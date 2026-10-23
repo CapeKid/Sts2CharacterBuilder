@@ -1,0 +1,58 @@
+[
+  {
+    "ancient": "NEOW",
+    "visit": "first",
+    "lines": [
+      {
+        "speaker": "Ancient",
+        "text": "A quiet moment before the climb.",
+        "next": "Answer"
+      },
+      {
+        "speaker": "Character",
+        "text": "I will use it well."
+      },
+      {
+        "speaker": "Ancient",
+        "text": "Then take your next step."
+      }
+    ],
+    "translations": [
+      {
+        "language": "fra",
+        "lines": [
+          {
+            "text": "Un instant de calme avant la montée.",
+            "next": "Répondre"
+          },
+          {},
+          {
+            "text": "Alors, avance."
+          }
+        ]
+      },
+      {
+        "language": "jpn",
+        "lines": [
+          {
+            "next": "答える"
+          },
+          {
+            "text": "大切にします。"
+          },
+          {}
+        ]
+      }
+    ]
+  },
+  {
+    "ancient": "NEOW",
+    "visit": "repeat",
+    "lines": [
+      {
+        "speaker": "Character",
+        "text": "Let the next step speak for itself."
+      }
+    ]
+  }
+]

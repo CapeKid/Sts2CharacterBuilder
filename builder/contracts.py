@@ -210,6 +210,15 @@ def load_events(toolkit, root, config=None):
     return events
 
 
+def dialogue_locales(toolkit, row):
+    if not row.get('translations'):
+        return []
+    authored = {t['language'] for t in row['translations']}
+    supported = read_json(toolkit / 'builder/dialogue.schema.json')['items']['properties']['translations']['items']['properties']['language']['enum']
+    fallback = sorted(set(supported) - authored)[:1]
+    return sorted({'eng', *authored, *fallback})
+
+
 def load_dialogue(toolkit, root, config=None):
     path = contained(root, 'design/dialogue.json')
     rows = read_json(path) if path.exists() else []
@@ -223,6 +232,17 @@ def load_dialogue(toolkit, root, config=None):
     for row in rows:
         if 'next' in row['lines'][-1]:
             raise BuilderError('Final dialogue line cannot specify next; native reward options follow')
+        translations = row.get('translations', [])
+        languages = [t['language'] for t in translations]
+        if len(languages) != len(set(languages)):
+            raise BuilderError('Duplicate dialogue translation language')
+        for translation in translations:
+            if len(translation['lines']) != len(row['lines']):
+                raise BuilderError('Dialogue translations must keep the English line count')
+            if not any(translation['lines']):
+                raise BuilderError('Dialogue translation needs at least one text or next override')
+            if 'next' in translation['lines'][-1]:
+                raise BuilderError('Final translated dialogue line cannot specify next')
     return rows
 
 
