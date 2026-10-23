@@ -180,6 +180,13 @@ def load_events(toolkit, root, config=None):
             unique(page['choices'], f'{event["id"]}/{page["id"]} choice')
             edges[page['id']] = []
             for choice in page['choices']:
+                requires = choice.get('requires', {})
+                if 'requires' in choice and not requires:
+                    raise BuilderError('Event requires needs at least one resource condition')
+                if (requires.get('min_gold', 0) > requires.get('max_gold', 999)
+                        or requires.get('max_gold', 999) < choice['cost']['gold']
+                        or requires.get('min_hp_percent', 0) > requires.get('max_hp_percent', 100)):
+                    raise BuilderError('Contradictory event resource conditions')
                 if choice['id'].replace('_', '').casefold() == 'leave':
                     raise BuilderError('Leave is reserved for the always-available exit')
                 if ('next' in choice) == ('result' in choice):

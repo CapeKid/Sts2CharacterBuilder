@@ -108,6 +108,32 @@
             "next": {
               "type": "string",
               "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+            },
+            "requires": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "min_gold": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 999
+                },
+                "max_gold": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 999
+                },
+                "min_hp_percent": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "max_hp_percent": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 99
+                }
+              }
             }
           }
         }
@@ -205,6 +231,32 @@
                   "next": {
                     "type": "string",
                     "pattern": "[A-Za-z][A-Za-z0-9_]{1,47}"
+                  },
+                  "requires": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "min_gold": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 999
+                      },
+                      "max_gold": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 999
+                      },
+                      "min_hp_percent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      },
+                      "max_hp_percent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 99
+                      }
+                    }
                   }
                 }
               }

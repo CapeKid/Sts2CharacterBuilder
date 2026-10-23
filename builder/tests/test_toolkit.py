@@ -74,6 +74,10 @@ def branching_events():
     return read_json(REPO / 'builder/examples/crossroads/events.json')
 
 
+def conditional_events():
+    return read_json(REPO / 'builder/examples/conditional-events/events.json')
+
+
 def item_art_assets():
     def svg(color):
         return f'<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="{color}"/><path d="M28 48L44 64L70 30" fill="none" stroke="#FFFFFF" stroke-width="8"/></svg>'.encode()
@@ -634,6 +638,48 @@ class ToolkitTests(unittest.TestCase):
                         [dict(r, next='Wrong') if r.get('next') else r for r in extra]):
             publish(invalid)
             with self.assertRaisesRegex(BuilderError, 'event'): native_evidence(self.toolkit, self.project)
+
+    def test_event_resource_conditions_contract_and_fingerprint(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        rows = conditional_events(); atomic(self.project / 'design/events.json', encoded(rows))
+        self.assertEqual(load_events(self.toolkit, self.project), rows)
+        generate(self.toolkit, self.project, freeze=True); before = input_hash(self.project)
+        self.edit('design/events.json', lambda e: e[0]['choices'][0]['requires'].update(min_gold=50))
+        self.assertNotEqual(before, input_hash(self.project))
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
+        generate(self.toolkit, self.project)
+        for conditions in ({}, dict(min_gold=True), dict(min_gold=1000), dict(max_gold=-1), dict(min_hp_percent=0),
+                           dict(max_hp_percent=100), dict(min_hp_percent=80,max_hp_percent=40), dict(min_gold=10,max_gold=5),
+                           dict(has_card='Strike')):
+            rows=conditional_events(); rows[0]['choices'][0]['requires']=conditions
+            atomic(self.project / 'design/events.json', encoded(rows))
+            with self.assertRaises(BuilderError): load_events(self.toolkit, self.project)
+        rows=conditional_events(); rows[0]['pages'][0]['choices'][0]['requires']=dict(max_gold=4)
+        atomic(self.project / 'design/events.json', encoded(rows))
+        with self.assertRaisesRegex(BuilderError,'Contradictory'): load_events(self.toolkit,self.project)
+
+    def test_event_condition_evidence_requires_each_boundary_and_stale_control(self):
+        self.edit('character.json', lambda c: c['features'].update(events=True))
+        rows=conditional_events(); atomic(self.project / 'design/events.json', encoded(rows)); generate(self.toolkit,self.project)
+        receipt=self.mock_pool_evidence(); base=list(receipt['checks']); extra=[]
+        for event in rows:
+            for page in event_pages(event):
+                extra += [dict(check='authored-event', id=event['id'], page=page['id'], choice=c['id'], next=c.get('next'),
+                    thresholds=True,staleGuard=True,nativeButton=True,exactEffects=True,duplicateSuppressed=True,pageText=True) for c in page['choices']]
+                extra += [dict(check='event-leave',id=event['id'],page=page['id'],alwaysAvailable=True,unchanged=True),
+                    dict(check='event-resume',id=event['id'],page=page['id'],initialCheckpoint=True,branchRollback=True,interruptedRollback=True,replayNoDuplicate=True,completedPersistence=True)]
+                extra += [dict(check='event-condition',id=event['id'],page=page['id'],choice=c['id'],condition=k,inclusive=True,outsideLocked=True,staleGuard=True,oldCallbackRejected=True)
+                          for c in page['choices'] for k in c.get('requires',{})]
+        def publish(checks):
+            receipt['checks']=base+checks; data=encoded(receipt); atomic(self.project/'private/condition-evidence.json',data)
+            atomic(self.project/'.builder/native-evidence.json',encoded(dict(path='private/condition-evidence.json',sha256=digest(data))))
+        publish(extra); self.assertIsNotNone(native_evidence(self.toolkit,self.project))
+        control=next(c for c in extra if c['check']=='event-condition')
+        for bad in ([c for c in extra if c!=control],extra+[control],
+                    [dict(c,outsideLocked=False) if c['check']=='event-condition' else c for c in extra],
+                    [dict(c,oldCallbackRejected=False) if c['check']=='event-condition' else c for c in extra]):
+            publish(bad)
+            with self.assertRaisesRegex(BuilderError,'event-condition'): native_evidence(self.toolkit,self.project)
 
     def test_event_ownership_ids_and_fingerprint(self):
         self.edit('character.json', lambda c: c['features'].update(events=True))
@@ -1497,7 +1543,7 @@ class ToolkitTests(unittest.TestCase):
         self.add_portrait()
         self.add_item_art()
         self.edit('character.json', lambda c: c['features'].update(events=True))
-        atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events()))
+        atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events() + conditional_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
         atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue()))
         generate(self.toolkit, self.project)

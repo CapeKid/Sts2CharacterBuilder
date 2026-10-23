@@ -142,6 +142,13 @@ def native_evidence(toolkit, root):
         if set(actual) != expected_events or len(actual) != len(expected_events):
             raise BuilderError(f'Native evidence does not cover every {label} case')
     branched = {e['id']: e for e in events if e.get('pages')}
+    conditional = {(e['id'], p['id'], c['id'], key) for e in events for p in event_pages(e)
+                   for c in p['choices'] for key in c.get('requires', {})}
+    controls = [c for c in receipt.get('checks', []) if c.get('check') == 'event-condition']
+    actual = [(c.get('id'), c.get('page'), c.get('choice'), c.get('condition')) for c in controls]
+    if (set(actual) != conditional or len(actual) != len(conditional)
+            or any(c.get(f) is not True for c in controls for f in ('inclusive', 'outsideLocked', 'staleGuard', 'oldCallbackRejected'))):
+        raise BuilderError('Native evidence does not cover every event-condition case')
     fields = {
         'authored-event': ('thresholds', 'staleGuard', 'nativeButton', 'exactEffects', 'duplicateSuppressed', 'pageText'),
         'event-leave': ('alwaysAvailable', 'unchanged'),
