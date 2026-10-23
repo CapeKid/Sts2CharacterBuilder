@@ -102,13 +102,13 @@
         try {
             foreach (var character in new CharacterModel[] { ModelDb.Character<Character>(), ModelDb.Character<MegaCrit.Sts2.Core.Models.Characters.Ironclad>() }) {
                 var player = Player.CreateForNewRun(character, Run.Players.Single().UnlockState, 104);
-                _ = RunState.CreateForTest([player], ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], GameMode.Standard, 0, "BUILDER-ENDING-CONTROL");
+                var control = RunState.CreateForTest([player], ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], GameMode.Standard, 0, "BUILDER-ENDING-CONTROL");
                 var stats = progress.GetOrCreateCharacterStats(character.Id); var original = stats.TotalWins;
                 try {
                     foreach (var wins in new[] { 0, 1, 100 }) {
                         stats.TotalWins = wins;
                         var model = (MegaCrit.Sts2.Core.Models.Events.TheArchitect)ModelDb.Event<MegaCrit.Sts2.Core.Models.Events.TheArchitect>().ToMutable();
-                        await model.BeginEvent(player, null!, false);
+                        await model.BeginEvent(player, new MegaCrit.Sts2.Core.Multiplayer.Game.EventCombatSynchronizer(control, control), false);
                         CheckEndingSelection(model, EndingExpected(player, wins));
                     }
                 } finally { stats.TotalWins = original; }
