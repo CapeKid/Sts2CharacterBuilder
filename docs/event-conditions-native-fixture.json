@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "kind": "native-event-resource-conditions",
+  "character": "EventConditionsTrial",
+  "toolkit_commit": "fd0a08e0856ce82361d32c2d0d1d161f70767664",
+  "game": {
+    "commit": "41cef1ea",
+    "version": "v0.111.0",
+    "date": "2026-08-13T17:39:18-07:00",
+    "branch": "v0.111.0",
+    "main_assembly_hash": 222455745
+  },
+  "target": "public-beta",
+  "process_exit": 0,
+  "replayed": false,
+  "independent_copies": true,
+  "protocol": {
+    "sample": "builder/examples/conditional-events/events.json",
+    "sample_canonical_json_sha256": "2a04f9c87f84066c1a61637bd0bb9c02745473a78deceba9185725473c49ba8f",
+    "fixture_events_canonical_json_sha256": "886af306c433ae4641f047b9ff0e1fcb6e2103cf499d0939d8001a6888d50d08",
+    "timeout_seconds": 600,
+    "conditional_fixture_max_hp": 10000,
+    "hp_boundary_step_percentage_points": 0.01,
+    "resources_and_page_rebuilds_are_fixture_setup": true,
+    "campaign": false
+  },
+  "check_count": 67,
+  "executed_check_count": 61,
+  "skipped_sentinel_count": 6,
+  "executed_checks": {
+    "native-io": 1,
+    "registration": 1,
+    "starting-kit": 1,
+    "starter-trigger": 1,
+    "event-condition": 7,
+    "authored-event": 7,
+    "event-leave": 3,
+    "event-resume": 3,
+    "event-pools": 1,
+    "card-portrait": 16,
+    "paid-card": 16,
+    "resource-turn": 1,
+    "reward-pool": 1,
+    "rewards-shop": 1,
+    "native-save-resume": 1
+  },
+  "skipped_sentinels": {
+    "selection-controls": 1,
+    "presentation-controls": 1,
+    "audio-controls": 1,
+    "dialogue-controls": 1,
+    "sprite-integration": 1,
+    "item-pools": 1
+  },
+  "event_checks": [
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "choice": "Ask",
+      "condition": "min_gold",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "authored-event",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "choice": "Ask",
+      "next": "Offer",
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "choice": "Aid",
+      "condition": "max_gold",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "authored-event",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "choice": "Aid",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "GatedCamp",
+      "page": "INITIAL",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "Trade",
+      "condition": "min_gold",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "Trade",
+      "condition": "max_gold",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "Trade",
+      "condition": "min_hp_percent",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "Trade",
+      "condition": "max_hp_percent",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "authored-event",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-condition",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "CapControl",
+      "condition": "min_hp_percent",
+      "inclusive": true,
+      "outsideLocked": true,
+      "staleGuard": true,
+      "oldCallbackRejected": true
+    },
+    {
+      "check": "authored-event",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "choice": "CapControl",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "GatedCamp",
+      "page": "Offer",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Rest",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Trade",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "authored-event",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "choice": "Exchange",
+      "next": null,
+      "thresholds": true,
+      "staleGuard": true,
+      "nativeButton": true,
+      "exactEffects": true,
+      "duplicateSuppressed": true,
+      "pageText": true
+    },
+    {
+      "check": "event-leave",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "alwaysAvailable": true,
+      "unchanged": true
+    },
+    {
+      "check": "event-resume",
+      "id": "QuietCamp",
+      "page": "INITIAL",
+      "branchRollback": true,
+      "initialCheckpoint": true,
+      "interruptedRollback": true,
+      "replayNoDuplicate": true,
+      "completedPersistence": true
+    },
+    {
+      "check": "event-pools",
+      "characterOnly": true,
+      "soloOnly": true,
+      "actsVerified": true
+    }
+  ],
+  "package": {
+    "sha256": "c136a8d081dbfc2f0e3bd76e918194bd8c2bd567f1a13ab4ed5ae907fdf91a94",
+    "payload_files": 7,
+    "probe_and_authoring_data_excluded": true
+  },
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Counterfactual resources/page rebuilds test guards, not unforced campaign reachability or balance",
+    "Owned public-beta v0.111.0 only; regular branch, human layout/devices and broader release gates remain",
+    "Only Gold and HP-percentage predicates; arbitrary predicates, effectful navigation and combat events require extensions"
+  ],
+  "input_sha256": "69137a95857569752129e8b9ded00ccef10903644fdbbcfd4a9a857c9ad0c289",
+  "source_sha256": "4a92a7e21737bd61014ccc3cf78efa4dae0a1b5c1ae25917a30a954dc1306c3e",
+  "release_dll_sha256": "9a787e2ab0019bc923ee4e0c29837c609b5239e3326e92dce217681336435778",
+  "test_dll_sha256": "6e0f7c7239ffdde9879392f5cffa97460613c252bbbcbdfaf8114ea2aad4b7e0",
+  "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+  "probe_source_sha256": "74451487c5f6158c6fe8e1811af5a5ed119b6bb39d62f9fd6b4cc14569d49719"
+}
