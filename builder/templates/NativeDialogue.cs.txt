@@ -192,7 +192,11 @@
         var bubble = (MegaCrit.Sts2.Core.Nodes.Vfx.NSpeechBubbleVfx)AccessTools.Property(model.GetType(), "SpeechBubble").GetValue(model)!;
         Require(bubble != null && bubble.IsInsideTree(), "Ending speech bubble missing.");
         var label = (MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel)AccessTools.Field(bubble.GetType(), "_label").GetValue(bubble)!;
-        Require(label.Text == row.GetProperty("lines")[i].GetProperty("text").GetString(), "Rendered ending speech differs.");
+        // Native speech adds center/fly-in markup around the authored formatted text.
+        var expected = row.GetProperty("lines")[i].GetProperty("text").GetString();
+        Require(label.Text.StartsWith("[center][fly_in offset_x=", StringComparison.Ordinal)
+            && label.Text.EndsWith(" offset_y=40]" + expected + "[/fly_in][/center]", StringComparison.Ordinal),
+            "Rendered ending speech differs: " + label.Text);
         if (i < row.GetProperty("lines").GetArrayLength() - 1)
             Require(model.CurrentOptions.Single().Title.GetFormattedText() == DialogueText(row, "eng", i, "next"), "Ending next label differs.");
     }
