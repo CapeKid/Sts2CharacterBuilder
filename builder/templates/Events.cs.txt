@@ -55,7 +55,7 @@ public abstract class AuthoredEvent : CustomEventModel
             cost.GetProperty("hp").GetInt32() is > 0 and var hpCost ? $"Lose {hpCost} HP (must leave at least 1 HP)." : null,
             reward.GetProperty("gold").GetInt32() is > 0 and var gold ? $"Gain {gold} Gold." : null,
             reward.GetProperty("heal").GetInt32() is > 0 and var heal ? $"Heal {heal} HP." : null,
-            choice.TryGetProperty("next", out _) ? "Continue the conversation." : null
+            choice.TryGetProperty("next", out _) ? "Continue." : null
         }.Where(s => s != null));
     }
     public override List<(string,string)> Localization
