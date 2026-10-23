@@ -11,6 +11,6 @@ Run `validate`, `generate`, and `generate --check` using the pinned toolkit CLI.
 
 Use a fresh `prepare-lab`/`test-native` lab for selector/fallback controls and every authored conversation's visible text, advancement, reward access and checkpoint replay. Translated rows also require every locale/fallback and checkpoint case, with rendered labels, live language switches and preserved progress/sound calls. Review formatting, wrapping, voice and English fallback in the actual game. Record human/device/language/co-op gaps separately; passing the synthetic suite does not complete them.
 
-The generator supports English fallback for eight ordinary Ancients. Custom Ancients, The Architect ending, victory/ending text, voiced lines require project-owned extensions plus explicit native evidence. Keep unsupported requested content as a gap.
+The generator supports eight ordinary Ancients with partial per-locale line/label overrides and English fallback. Custom Ancients, The Architect ending, victory/ending text, voiced lines require project-owned extensions plus explicit native evidence. Keep unsupported requested content as a gap.
 
 Skip outcome: clear dialogue data, set dialogue false, regenerate and retain native encounter dialogue with no custom dialogue patches.

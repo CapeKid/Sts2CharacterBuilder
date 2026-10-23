@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "kind": "native-translated-ancient-dialogue",
+  "character": "TranslatedDialogueTrial",
+  "toolkit_commit": "4f050a4eb7b36535b4fd6bc0bd675483d019a470",
+  "game": {
+    "commit": "41cef1ea",
+    "version": "v0.111.0",
+    "date": "2026-08-13T17:39:18-07:00",
+    "branch": "v0.111.0",
+    "main_assembly_hash": 222455745
+  },
+  "target": "public-beta",
+  "process_exit": 0,
+  "replayed": false,
+  "independent_copies": true,
+  "protocol": {
+    "sample": "builder/examples/translated-dialogue/dialogue.json",
+    "sample_canonical_json_sha256": "bb47b64940da3583feba643c65605c59297f863026acb644eae3724849887e95",
+    "timeout_seconds": 600,
+    "prior_attempts": [
+      {
+        "outcome": "failed-initializer",
+        "reason": "Wrong locale-hook name; corrected against owned API"
+      },
+      {
+        "outcome": "failed-startup",
+        "reason": "Locale callback ran before singleton assignment; corrected to use the callback instance"
+      }
+    ],
+    "no_lab_replayed": true
+  },
+  "conversations": [
+    {
+      "ancient": "NEOW",
+      "visit": "first",
+      "translated_languages": [
+        "fra",
+        "jpn"
+      ],
+      "verified_locales": [
+        "deu",
+        "eng",
+        "fra",
+        "jpn"
+      ]
+    },
+    {
+      "ancient": "NEOW",
+      "visit": "repeat",
+      "translated_languages": [],
+      "verified_locales": [
+        "eng"
+      ]
+    }
+  ],
+  "check_count": 59,
+  "executed_check_count": 53,
+  "skipped_sentinel_count": 6,
+  "executed_checks": {
+    "native-io": 1,
+    "registration": 1,
+    "starting-kit": 1,
+    "starter-trigger": 1,
+    "dialogue-controls": 1,
+    "dialogue-locale": 4,
+    "dialogue-locale-resume": 4,
+    "authored-dialogue": 2,
+    "dialogue-resume": 2,
+    "card-portrait": 16,
+    "paid-card": 16,
+    "resource-turn": 1,
+    "reward-pool": 1,
+    "rewards-shop": 1,
+    "native-save-resume": 1
+  },
+  "skipped_sentinels": {
+    "selection-controls": 1,
+    "presentation-controls": 1,
+    "audio-controls": 1,
+    "event-pools": 1,
+    "sprite-integration": 1,
+    "item-pools": 1
+  },
+  "dialogue_checks": [
+    {
+      "check": "dialogue-controls",
+      "foreignUnchanged": true,
+      "omittedUnchanged": true,
+      "untaggedUnchanged": true,
+      "lateRepeat": true,
+      "firstEver": true,
+      "localeSwitch": "zhs",
+      "inlineLocalizationPreserved": true
+    },
+    {
+      "check": "dialogue-locale",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "deu",
+      "visibleText": true,
+      "renderedLabels": true,
+      "nextLabels": true,
+      "speakersPreserved": true,
+      "liveSwitch": true,
+      "progressPreserved": true,
+      "noSoundReplay": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true,
+      "inlineLocalizationPreserved": true
+    },
+    {
+      "check": "dialogue-locale-resume",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "deu",
+      "nativeCheckpoint": true,
+      "replayFromStart": true,
+      "renderedLabels": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "authored-dialogue",
+      "ancient": "NEOW",
+      "visit": "first",
+      "visibleText": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "dialogue-locale",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "eng",
+      "visibleText": true,
+      "renderedLabels": true,
+      "nextLabels": true,
+      "speakersPreserved": true,
+      "liveSwitch": true,
+      "progressPreserved": true,
+      "noSoundReplay": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true,
+      "inlineLocalizationPreserved": true
+    },
+    {
+      "check": "dialogue-resume",
+      "ancient": "NEOW",
+      "visit": "first",
+      "nativeCheckpoint": true,
+      "replayFromStart": true
+    },
+    {
+      "check": "dialogue-locale-resume",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "eng",
+      "nativeCheckpoint": true,
+      "replayFromStart": true,
+      "renderedLabels": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "dialogue-locale",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "fra",
+      "visibleText": true,
+      "renderedLabels": true,
+      "nextLabels": true,
+      "speakersPreserved": true,
+      "liveSwitch": true,
+      "progressPreserved": true,
+      "noSoundReplay": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true,
+      "inlineLocalizationPreserved": true
+    },
+    {
+      "check": "dialogue-locale-resume",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "fra",
+      "nativeCheckpoint": true,
+      "replayFromStart": true,
+      "renderedLabels": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "dialogue-locale",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "jpn",
+      "visibleText": true,
+      "renderedLabels": true,
+      "nextLabels": true,
+      "speakersPreserved": true,
+      "liveSwitch": true,
+      "progressPreserved": true,
+      "noSoundReplay": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true,
+      "inlineLocalizationPreserved": true
+    },
+    {
+      "check": "dialogue-locale-resume",
+      "ancient": "NEOW",
+      "visit": "first",
+      "language": "jpn",
+      "nativeCheckpoint": true,
+      "replayFromStart": true,
+      "renderedLabels": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "authored-dialogue",
+      "ancient": "NEOW",
+      "visit": "repeat",
+      "visibleText": true,
+      "nativeAdvance": true,
+      "rewardsAvailable": true
+    },
+    {
+      "check": "dialogue-resume",
+      "ancient": "NEOW",
+      "visit": "repeat",
+      "nativeCheckpoint": true,
+      "replayFromStart": true
+    }
+  ],
+  "package": {
+    "sha256": "8777b9e6e7f9fce28b5f045084e55d50da3da4f9fa5b05e737958e7aad645dab",
+    "payload_files": 7,
+    "probe_and_authoring_data_excluded": true
+  },
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Headless text/label checks are not human translation quality, font/layout, or device validation",
+    "Owned public-beta v0.111.0 only; regular branch and broader release gates remain",
+    "Ancient line/next-label translations only; ending/victory dialogue and voiced lines require extensions"
+  ],
+  "input_sha256": "4627a0222c63a6b0c74379e39d01c1a543b0f524dea964f2062ef9506d19d7a1",
+  "source_sha256": "ae60e848ae269197ac002419c52aaf04ec726eccdd00f19fcc2e0fd964f3b59c",
+  "release_dll_sha256": "5fc3b4ec97b6ea9bd8fbc5f2518f4929e9e7a2c766a09056321361b073238afd",
+  "test_dll_sha256": "6314fe2319f081f69e3d623596ac16af2f842f0e0cf7d1dedc4261fa6e2173b2",
+  "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+  "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+  "probe_source_sha256": "70a78da6b2c9790450923fa85c5de94f2fcf4f284179d9c65ce4943f61ffd69e"
+}
