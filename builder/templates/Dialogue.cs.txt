@@ -31,7 +31,7 @@ internal static class CharacterDialogue
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Identify)));
             harmony.Patch(AccessTools.Method(typeof(AncientDialogueSet), nameof(AncientDialogueSet.GetValidDialogues)),
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(Select)));
-            harmony.Patch(AccessTools.Method(typeof(LocManager), "TriggerLocaleChangedEvent"),
+            harmony.Patch(AccessTools.Method(typeof(LocManager), "TriggerLocaleChange"),
                 prefix: new HarmonyMethod(typeof(CharacterDialogue), nameof(RestoreLocalization)),
                 postfix: new HarmonyMethod(typeof(CharacterDialogue), nameof(RefreshVisibleDialogue)));
             Initialized = true;

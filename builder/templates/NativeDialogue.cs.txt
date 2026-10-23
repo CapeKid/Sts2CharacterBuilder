@@ -7,7 +7,9 @@
         // for this isolated test. No production fallback algorithm is duplicated.
         var method = AccessTools.Method(typeof(AncientDialogueSet), nameof(AncientDialogueSet.GetValidDialogues));
         var patch = AccessTools.Method(typeof(CharacterDialogue), "Select");
-        var harmony = new Harmony(Harmony.GetPatchInfo(method).Postfixes.Single(p => p.PatchMethod == patch).owner);
+        var owner = Harmony.GetPatchInfo(method)?.Postfixes.SingleOrDefault(p => p.PatchMethod == patch)?.owner
+            ?? throw new InvalidDataException("Authored dialogue hook missing; inspect the mod initializer log.");
+        var harmony = new Harmony(owner);
         foreach (var ancient in ModelDb.AllAncients) {
             var set = ancient.DialogueSet;
             foreach (var character in new[] { own, foreign }) foreach (var visits in new[] { 0, 1, 100 }) foreach (var allow in new[] { false, true }) {
