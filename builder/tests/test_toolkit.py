@@ -1165,7 +1165,7 @@ class ToolkitTests(unittest.TestCase):
         receipt = self.mock_pool_evidence()
         cases = [dict(check='ending-dialogue', ancient=r['ancient'], visit=r['visit'], visibleText=True,
                  speakersPreserved=True, nativeAdvance=True, nativeChoreography=True, proceedUnchanged=True, checkpointReplay=True) for r in rows]
-        cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True)]
+        cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True, emptyNative=True, existingMetadata=True)]
         base = list(receipt['checks'])
         def publish(extra):
             receipt['checks'] = base + extra
@@ -1177,7 +1177,9 @@ class ToolkitTests(unittest.TestCase):
                         [dict(c, nativeChoreography=False) if c['check']=='ending-dialogue' else c for c in cases],
                         [dict(c, proceedUnchanged=False) if c['check']=='ending-dialogue' else c for c in cases],
                         [dict(c, checkpointReplay=False) if c['check']=='ending-dialogue' else c for c in cases],
-                        [dict(c, foreignUnchanged=False) if c['check']=='ending-controls' else c for c in cases]):
+                        [dict(c, foreignUnchanged=False) if c['check']=='ending-controls' else c for c in cases],
+                        [dict(c, emptyNative=False) if c['check']=='ending-controls' else c for c in cases],
+                        [dict(c, existingMetadata=False) if c['check']=='ending-controls' else c for c in cases]):
             publish(invalid)
             with self.assertRaisesRegex(BuilderError, 'ending dialogue'): native_evidence(self.toolkit, self.project)
 

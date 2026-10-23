@@ -118,15 +118,17 @@ internal static class CharacterDialogue
     }
     private static void Ending(TheArchitect __instance, ref AncientDialogue? ____dialogue)
     {
-        if (__instance.Owner?.Character is not Character || ____dialogue == null) return;
+        if (__instance.Owner?.Character is not Character) return;
         var wins = SaveManager.Instance.Progress.GetStatsForCharacter(__instance.Owner.Character.Id)?.TotalWins ?? 0;
         var visit = wins <= 0 ? "first" : "repeat";
         foreach (var row in Rows.EnumerateArray()) {
             if (row.GetProperty("ancient").GetString() != "THE_ARCHITECT" || row.GetProperty("visit").GetString() != visit) continue;
-            // Keep the exact native selection's attack choreography and visit metadata.
+            // Keep an existing selection's choreography/metadata. A new character can have
+            // no native dialogue: use no opening attack and both native closing attacks.
             // Native line advancement, speech bubbles and Proceed/WinRun remain intact.
             var native = ____dialogue;
-            var dialogue = Create(row, native.VisitIndex, native.IsRepeating, native.StartAttackers, native.EndAttackers);
+            var dialogue = Create(row, native != null ? native.VisitIndex : (wins <= 0 ? 0 : 1), native?.IsRepeating ?? wins > 0,
+                native?.StartAttackers ?? ArchitectAttackers.None, native?.EndAttackers ?? ArchitectAttackers.Both);
             ____dialogue = dialogue;
             return;
         }

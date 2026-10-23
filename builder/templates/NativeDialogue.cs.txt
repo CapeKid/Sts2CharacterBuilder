@@ -59,18 +59,28 @@
 #endif
     }
 #if BUILDER_AUTHORED_DIALOGUE
-    private sealed record EndingSelection(AncientDialogue Native, ArchitectAttackers Start, ArchitectAttackers End, int? Visit, bool Repeating);
+    private sealed record EndingSelection(AncientDialogue? Native, ArchitectAttackers Start, ArchitectAttackers End, int? Visit, bool Repeating);
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MegaCrit.Sts2.Core.Models.Events.TheArchitect, EndingSelection> EndingSelections = new();
+    private static int SeedEndingMode;
+    private static void SeedEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, ref AncientDialogue? ____dialogue)
+    {
+        if (SeedEndingMode == 0 || __instance.Owner.Character is not Character) return;
+        ____dialogue = SeedEndingMode == 1 ? null : new AncientDialogue([""]) {
+            StartAttackers = ArchitectAttackers.Architect, EndAttackers = ArchitectAttackers.Player,
+            VisitIndex = null, IsRepeating = true };
+    }
     private static bool ForceEndingRoom;
     private static bool EndingRoomRoll(MegaCrit.Sts2.Core.Map.MapPointType __0, ref RoomType __result)
     {
         if (!ForceEndingRoom || __0 != MegaCrit.Sts2.Core.Map.MapPointType.Unknown) return true;
         __result = RoomType.Event; return false;
     }
-    private static void ObserveEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, AncientDialogue ____dialogue)
+    private static void ObserveEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, AncientDialogue? ____dialogue)
     {
         EndingSelections.Remove(__instance);
-        EndingSelections.Add(__instance, new(____dialogue, ____dialogue.StartAttackers, ____dialogue.EndAttackers, ____dialogue.VisitIndex, ____dialogue.IsRepeating));
+        var wins = SaveManager.Instance.Progress.GetStatsForCharacter(__instance.Owner.Character.Id)?.TotalWins ?? 0;
+        EndingSelections.Add(__instance, new(____dialogue, ____dialogue?.StartAttackers ?? ArchitectAttackers.None,
+            ____dialogue?.EndAttackers ?? ArchitectAttackers.Both, ____dialogue != null ? ____dialogue.VisitIndex : (wins <= 0 ? 0 : 1), ____dialogue?.IsRepeating ?? wins > 0));
     }
     private static AncientDialogue EndingLines(MegaCrit.Sts2.Core.Models.Events.TheArchitect model) =>
         (AncientDialogue)AccessTools.Property(model.GetType(), "Dialogue").GetValue(model)!;
@@ -83,7 +93,7 @@
     {
         Require(EndingSelections.TryGetValue(model, out var before), "Native ending selection was not observed.");
         var after = EndingLines(model);
-        Require(after.StartAttackers == before!.Start && after.EndAttackers == before.End
+        if (authored || before!.Native != null) Require(after.StartAttackers == before!.Start && after.EndAttackers == before.End
             && after.VisitIndex == before.Visit && after.IsRepeating == before.Repeating, "Ending choreography/visit metadata changed.");
         Require(authored ? after.Lines.All(l => l.LineText!.LocEntryKey.Contains(".BUILDER_DIALOGUE.THE_ARCHITECT."))
             : ReferenceEquals(after, before.Native), "Ending selection/fallback changed.");
@@ -93,6 +103,8 @@
         var rows = Request.GetProperty("dialogue").EnumerateArray().Where(r => r.GetProperty("ancient").GetString() == "THE_ARCHITECT").ToArray();
         // Even ordinary-only configurations check that our selector leaves endings alone.
         var observer = new Harmony(typeof(ModEntry).Namespace + ".ending-observer");
+        observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "LoadDialogue"),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(SeedEnding)) { priority = Priority.First + 100 });
         observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "LoadDialogue"),
             postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveEnding)) { priority = Priority.First });
         observer.Patch(AccessTools.Method(typeof(RunManager), "RollRoomTypeFor"),
@@ -112,6 +124,18 @@
                         CheckEndingSelection(model, EndingExpected(player, wins));
                     }
                 } finally { stats.TotalWins = original; }
+            }
+            // Counterfactual selection controls: empty and nondefault native metadata,
+            // including nullable VisitIndex. Never used during rendered encounter checks.
+            foreach (var row in rows) foreach (var seed in new[] { 1, 2 }) {
+                ownStats.TotalWins = row.GetProperty("visit").GetString() == "first" ? 0 : 100;
+                var player = Player.CreateForNewRun(ModelDb.Character<Character>(), Run.Players.Single().UnlockState, 105);
+                var control = RunState.CreateForTest([player], ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], GameMode.Standard, 0, "BUILDER-ENDING-SEED");
+                var model = (MegaCrit.Sts2.Core.Models.Events.TheArchitect)ModelDb.Event<MegaCrit.Sts2.Core.Models.Events.TheArchitect>().ToMutable();
+                SeedEndingMode = seed;
+                try { await model.BeginEvent(player, new MegaCrit.Sts2.Core.Multiplayer.Game.EventCombatSynchronizer(control, control), false); }
+                finally { SeedEndingMode = 0; }
+                CheckEndingSelection(model, true);
             }
             foreach (var row in rows) {
                 var visit = row.GetProperty("visit").GetString()!;
@@ -150,8 +174,8 @@
                 Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
                     nativeAdvance = true, nativeChoreography = true, proceedUnchanged = true, checkpointReplay = true });
             }
-            Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true });
-        } finally { ownStats.TotalWins = priorWins; ForceEndingRoom = false; observer.UnpatchAll(observer.Id); }
+            Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true, emptyNative = true, existingMetadata = true });
+        } finally { ownStats.TotalWins = priorWins; ForceEndingRoom = false; SeedEndingMode = 0; observer.UnpatchAll(observer.Id); }
     }
     private static async Task<MegaCrit.Sts2.Core.Models.Events.TheArchitect> EndingReady(JsonElement row)
     {
