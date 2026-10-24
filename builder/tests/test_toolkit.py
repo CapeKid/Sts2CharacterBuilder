@@ -1166,6 +1166,9 @@ class ToolkitTests(unittest.TestCase):
         cases = [dict(check='ending-dialogue', ancient=r['ancient'], visit=r['visit'], visibleText=True,
                  speakersPreserved=True, nativeAdvance=True, nativeChoreography=True, proceedUnchanged=True, checkpointReplay=True) for r in rows]
         cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True, emptyNative=True, existingMetadata=True)]
+        cases += [dict(check='ending-completion', ancient=r['ancient'], visit=r['visit'], closingAttacks=True, nativeWin=True,
+                  exactlyOnce=True, scoreAndStats=True, historyPersisted=True, checkpointDeleted=True, postWinScreen=True,
+                  characterVisible=True, returnToMenu=True, platformIsolated=True, authoredSprite=False, score=10) for r in rows]
         base = list(receipt['checks'])
         def publish(extra):
             receipt['checks'] = base + extra
@@ -1173,7 +1176,7 @@ class ToolkitTests(unittest.TestCase):
             atomic(self.project / path, data)
             atomic(self.project / '.builder/native-evidence.json', encoded(dict(path=path, sha256=digest(data))))
         publish(cases); self.assertIsNotNone(native_evidence(self.toolkit, self.project))
-        for invalid in (cases[:-1], cases[1:], cases + [cases[0]],
+        for invalid in ([c for c in cases if c['check']!='ending-controls'], cases[1:], cases + [cases[0]],
                         [dict(c, nativeChoreography=False) if c['check']=='ending-dialogue' else c for c in cases],
                         [dict(c, proceedUnchanged=False) if c['check']=='ending-dialogue' else c for c in cases],
                         [dict(c, checkpointReplay=False) if c['check']=='ending-dialogue' else c for c in cases],
@@ -1182,6 +1185,16 @@ class ToolkitTests(unittest.TestCase):
                         [dict(c, existingMetadata=False) if c['check']=='ending-controls' else c for c in cases]):
             publish(invalid)
             with self.assertRaisesRegex(BuilderError, 'ending dialogue'): native_evidence(self.toolkit, self.project)
+        completion = [c for c in cases if c['check']=='ending-completion']
+        invalid_completion = [[c for c in cases if c['check']!='ending-completion'], cases + [completion[0]]]
+        for field in ('closingAttacks', 'nativeWin', 'exactlyOnce', 'scoreAndStats', 'historyPersisted',
+                      'checkpointDeleted', 'postWinScreen', 'characterVisible', 'returnToMenu', 'platformIsolated'):
+            invalid_completion.append([dict(c, **{field: False}) if c['check']=='ending-completion' else c for c in cases])
+        for change in (dict(score=True), dict(score=-1), dict(authoredSprite=True)):
+            invalid_completion.append([dict(c, **change) if c['check']=='ending-completion' else c for c in cases])
+        for invalid in invalid_completion:
+            publish(invalid)
+            with self.assertRaisesRegex(BuilderError, 'ending completion'): native_evidence(self.toolkit, self.project)
 
     def test_dialogue_contract_and_optional_generation(self):
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))

@@ -192,6 +192,15 @@ def native_evidence(toolkit, root):
             or expected_endings and (len(controls) != 1 or any(controls[0].get(f) is not True
                 for f in ('foreignUnchanged', 'omittedUnchanged', 'lateRepeat', 'nativeMetadata', 'emptyNative', 'existingMetadata')))):
         raise BuilderError('Native evidence does not cover every ending dialogue/control case')
+    completion = [c for c in receipt.get('checks', []) if c.get('check') == 'ending-completion']
+    actual_completion = [(c.get('ancient'), c.get('visit')) for c in completion]
+    completion_fields = ('closingAttacks', 'nativeWin', 'exactlyOnce', 'scoreAndStats', 'historyPersisted',
+                         'checkpointDeleted', 'postWinScreen', 'characterVisible', 'returnToMenu', 'platformIsolated')
+    if (set(actual_completion) != expected_endings or len(actual_completion) != len(expected_endings)
+            or any(c.get(f) is not True for c in completion for f in completion_fields)
+            or any(type(c.get('score')) is not int or c['score'] < 0
+                   or c.get('authoredSprite') is not bool(load_sprites(toolkit, root, config)) for c in completion)):
+        raise BuilderError('Native evidence does not cover every ending completion case')
     sprites = load_sprites(toolkit, root, config)
     actual = [c.get('state') for c in receipt.get('checks', []) if c.get('check') == 'sprite-state']
     expected_states = set(sprites['states']) if sprites else set()
