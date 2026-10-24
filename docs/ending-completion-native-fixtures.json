@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "kind": "native-ending-completion",
+  "protocol": {
+    "sample": "builder/examples/ending-dialogue/dialogue.json",
+    "sample_canonical_json_sha256": "fb40713c72ff699c9553ce389361c81ef3c271089ba7e42a8ef39db18958c248",
+    "timeout_seconds": 600,
+    "forced_act_one_ending": true,
+    "actual_proceed_and_closing_attacks": true,
+    "actual_win_processing": true,
+    "native_guarded_death_callback": true,
+    "positive_native_scores": true,
+    "persisted_win_history_and_completed_checkpoint_deletion": true,
+    "native_summary_and_menu_buttons": true,
+    "player_visual_reparenting": true,
+    "fresh_run_after_completion": true,
+    "mocked_save_backend": true,
+    "platform_statistic_facade_and_steam_adapter_intercepted": true,
+    "telemetry_policy_and_transport_suppressed": true,
+    "end_of_run_achievement_reporting_suppressed": true,
+    "no_lab_replayed": true,
+    "prior_attempts": [
+      {
+        "outcome": "failed-observer-assumption",
+        "reason": "Native winning processing is followed by a guarded ordinary death callback; verify one win write instead of requiring every callback argument to be true"
+      },
+      {
+        "outcome": "failed-cleanup-assertion",
+        "reason": "Native menu return frees its screen; validate object lifetime before inspecting tree membership"
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "character": "EndingCompletionTrial",
+      "authored_sprite": false,
+      "toolkit_commit": "168c2e40ff14b3b4bebadd301068eee340b0eead",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "independent_copies": true,
+      "check_count": 52,
+      "executed_check_count": 46,
+      "skipped_sentinel_count": 6,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "dialogue-controls": 1,
+        "ending-dialogue": 2,
+        "ending-completion": 2,
+        "ending-controls": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "sprite-integration": 1,
+        "item-pools": 1
+      },
+      "ending_and_revival_checks": [
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-completion",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "closingAttacks": true,
+          "nativeWin": true,
+          "guardedDeathCallback": true,
+          "exactlyOnce": true,
+          "scoreAndStats": true,
+          "historyPersisted": true,
+          "checkpointDeleted": true,
+          "postWinScreen": true,
+          "summaryVisible": true,
+          "characterVisible": true,
+          "returnToMenu": true,
+          "platformIsolated": true,
+          "authoredSprite": false,
+          "score": 10
+        },
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-completion",
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "closingAttacks": true,
+          "nativeWin": true,
+          "guardedDeathCallback": true,
+          "exactlyOnce": true,
+          "scoreAndStats": true,
+          "historyPersisted": true,
+          "checkpointDeleted": true,
+          "postWinScreen": true,
+          "summaryVisible": true,
+          "characterVisible": true,
+          "returnToMenu": true,
+          "platformIsolated": true,
+          "authoredSprite": false,
+          "score": 10
+        },
+        {
+          "check": "ending-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "lateRepeat": true,
+          "nativeMetadata": true,
+          "emptyNative": true,
+          "existingMetadata": true
+        }
+      ],
+      "package": {
+        "sha256": "2c476b21e30935ff86a7a829c72023db71674af9b4aa39acec833dfa93817869",
+        "payload_files": 7,
+        "probe_platform_hooks_and_authoring_data_excluded": true
+      },
+      "input_sha256": "6d43ce6f92b0ddf9ea5a971826d2f94deb4b6c284c8b7cafa4ba4eb9d7eff469",
+      "source_sha256": "f09ce2647f15b2ad549847a00afd1b87fdd6f5ad124d55d744e28e5245136869",
+      "release_dll_sha256": "38d8f602e3c6d233ec480dd6ee9e7a8bbf5debbc121b636a8c1851b3a33158ca",
+      "test_dll_sha256": "b6b72d8f5781883ef41a669484e209a1e41f07f022e0c326f999b644b353c8e7",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "0551d486f88b06c95368f3b3c7beb23396e40300f4ceca0104b92b6215de048f"
+    },
+    {
+      "character": "EndingCompletionSpriteTrial",
+      "authored_sprite": true,
+      "toolkit_commit": "168c2e40ff14b3b4bebadd301068eee340b0eead",
+      "game": {
+        "commit": "41cef1ea",
+        "version": "v0.111.0",
+        "date": "2026-08-13T17:39:18-07:00",
+        "branch": "v0.111.0",
+        "main_assembly_hash": 222455745
+      },
+      "target": "public-beta",
+      "process_exit": 0,
+      "replayed": false,
+      "independent_copies": true,
+      "check_count": 64,
+      "executed_check_count": 59,
+      "skipped_sentinel_count": 5,
+      "executed_checks": {
+        "native-io": 1,
+        "registration": 1,
+        "starting-kit": 1,
+        "starter-trigger": 1,
+        "dialogue-controls": 1,
+        "ending-dialogue": 2,
+        "ending-completion": 2,
+        "ending-controls": 1,
+        "sprite-integration": 1,
+        "sprite-state": 6,
+        "sprite-fairy-revive": 3,
+        "sprite-victory": 1,
+        "sprite-reset": 1,
+        "card-portrait": 16,
+        "paid-card": 16,
+        "resource-turn": 1,
+        "reward-pool": 1,
+        "rewards-shop": 1,
+        "sprite-resume": 1,
+        "native-save-resume": 1
+      },
+      "skipped_sentinels": {
+        "selection-controls": 1,
+        "presentation-controls": 1,
+        "audio-controls": 1,
+        "event-pools": 1,
+        "item-pools": 1
+      },
+      "ending_and_revival_checks": [
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-completion",
+          "ancient": "THE_ARCHITECT",
+          "visit": "first",
+          "closingAttacks": true,
+          "nativeWin": true,
+          "guardedDeathCallback": true,
+          "exactlyOnce": true,
+          "scoreAndStats": true,
+          "historyPersisted": true,
+          "checkpointDeleted": true,
+          "postWinScreen": true,
+          "summaryVisible": true,
+          "characterVisible": true,
+          "returnToMenu": true,
+          "platformIsolated": true,
+          "authoredSprite": true,
+          "score": 10
+        },
+        {
+          "check": "ending-dialogue",
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "visibleText": true,
+          "speakersPreserved": true,
+          "nativeAdvance": true,
+          "nativeChoreography": true,
+          "proceedUnchanged": true,
+          "checkpointReplay": true
+        },
+        {
+          "check": "ending-completion",
+          "ancient": "THE_ARCHITECT",
+          "visit": "repeat",
+          "closingAttacks": true,
+          "nativeWin": true,
+          "guardedDeathCallback": true,
+          "exactlyOnce": true,
+          "scoreAndStats": true,
+          "historyPersisted": true,
+          "checkpointDeleted": true,
+          "postWinScreen": true,
+          "summaryVisible": true,
+          "characterVisible": true,
+          "returnToMenu": true,
+          "platformIsolated": true,
+          "authoredSprite": true,
+          "score": 10
+        },
+        {
+          "check": "ending-controls",
+          "foreignUnchanged": true,
+          "omittedUnchanged": true,
+          "lateRepeat": true,
+          "nativeMetadata": true,
+          "emptyNative": true,
+          "existingMetadata": true
+        },
+        {
+          "check": "sprite-fairy-revive",
+          "case": "lethal-hit",
+          "potion": "POTION.FAIRY_IN_A_BOTTLE",
+          "hp": 30,
+          "consumedOnlyFairy": true,
+          "sameSpriteAndAtlas": true,
+          "visible": true,
+          "anchorsAndScale": true,
+          "attackAfterRevive": true
+        },
+        {
+          "check": "sprite-fairy-revive",
+          "case": "held-death-pose",
+          "potion": "POTION.FAIRY_IN_A_BOTTLE",
+          "hp": 30,
+          "consumedOnlyFairy": true,
+          "sameSpriteAndAtlas": true,
+          "visible": true,
+          "anchorsAndScale": true,
+          "attackAfterRevive": true
+        },
+        {
+          "check": "sprite-fairy-revive",
+          "case": "repeated-lethal-hit",
+          "potion": "POTION.FAIRY_IN_A_BOTTLE",
+          "hp": 30,
+          "consumedOnlyFairy": true,
+          "sameSpriteAndAtlas": true,
+          "visible": true,
+          "anchorsAndScale": true,
+          "attackAfterRevive": true
+        }
+      ],
+      "package": {
+        "sha256": "014454365b62fdc4ef7bc2327c9e18602df32f94af8f2f61a40a233dc3872a8a",
+        "payload_files": 8,
+        "probe_platform_hooks_and_authoring_data_excluded": true
+      },
+      "input_sha256": "1858d89b44566729474bedc6060238cec0b2d81f3142f508d140964470e95fd5",
+      "source_sha256": "88202417a2ba651b78dfffbb0a18c1446944f99a0a84282a635c863f5f724324",
+      "release_dll_sha256": "2d88a5bf650dd18cf460980131d1c9a6456dec2fa90c3047e7c374ba0e14d34a",
+      "test_dll_sha256": "3866fec17ead339c9d46b85f63320a9a408c2b16fd5a712598a781fa62bc5cc1",
+      "game_dll_sha256": "0861bfa1df347538d932f22d580e75420f08082792eb914e53b4882764acdbe9",
+      "baselib_sha256": "55863ca6adc30a61a7544874e157a519ffe148ccf2b18025947609c4bff813ce",
+      "probe_source_sha256": "90c0ba98edeb383863c77c80836cf4264b0bce726533a484164f8cece8d0bbae"
+    }
+  ],
+  "uploaded": false,
+  "release_ready": false,
+  "gaps": [
+    "Forced Act 1 ending integration does not establish campaign reachability, difficulty, balance or full-campaign completion",
+    "Platform statistic/telemetry/achievement reporting is intentionally suppressed; no live reporting behavior is certified",
+    "Headless scene/state checks are not human art/layout/audio, controller/Deck or co-op review",
+    "Owned public-beta v0.111.0 only; regular branch, translated endings and broader release/delivery gates remain"
+  ]
+}

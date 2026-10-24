@@ -4,6 +4,6 @@ The three-line first ending and one-line repeat ending demonstrate `THE_ARCHITEC
 
 Native character wins select first/repeat. The generated code retains the native selected ending's start/end attack settings and Proceed callback. These original lines use English fallback in every locale; translated endings are not supported by this contract. No reference-mod text, artwork or progression systems are used.
 
-The native fixture advances to Proceed and checks its original callback; it does not invoke Proceed or establish campaign completion or post-win-screen behavior. Human voice/layout and device review remain necessary.
+The current native fixture advances through the actual Proceed callback, closing attacks and WinRun, then checks isolated score/history processing and the post-win screen. It suppresses platform statistic/telemetry/achievement reporting and does not establish campaign reachability or balance. Human voice/layout and device review remain necessary.
 
 If native selection is empty for a new character, an authored ending uses no opening attacks and both native closing attacks, with first/repeat visit metadata. Existing native selections keep their exact metadata. Omitted rows preserve even an empty native result; a missing ending is not evidence of campaign completion.

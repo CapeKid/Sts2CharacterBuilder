@@ -81,6 +81,7 @@ internal static class NativeProbe
         var settings = SaveManager.Instance.SettingsSave;
         var manager = new SaveManager(new GodotFileIo("user://builder-tests"));
         SaveManager.MockInstanceForTesting(manager);
+        InitializePlatformIsolation();
         manager.InitSettingsDataForTest();
         manager.SettingsSave.Language = "eng";
         manager.SettingsSave.SeenEaDisclaimer = true;
@@ -100,6 +101,42 @@ internal static class NativeProbe
         Tree.ProcessFrame += Begin;
         GD.Print("Character builder isolated native probe ready; Steam Cloud save backend replaced.");
     }
+
+    // A mocked save backend alone does not isolate the native ending's Steam
+    // statistic or telemetry. These hooks exist only in the opt-in test DLL.
+    private static long LabArchitectDamage;
+    private static int LabStatWrites;
+    private static bool PlatformIsolationInstalled;
+    private static void InitializePlatformIsolation()
+    {
+        var harmony = new Harmony(typeof(ModEntry).Namespace + ".native-platform-isolation");
+        var stats = typeof(MegaCrit.Sts2.Core.Platform.StatsManager);
+        var steam = AccessTools.TypeByName("MegaCrit.Sts2.Core.Platform.Steam.SteamStatsManager")
+            ?? throw new InvalidDataException("Native Steam statistic adapter missing.");
+        void Patch(Type type, string method, string prefix) => harmony.Patch(
+            AccessTools.Method(type, method) ?? throw new InvalidDataException("Missing isolation target: " + method),
+            prefix: new HarmonyMethod(typeof(NativeProbe), prefix));
+        Patch(stats, "IncrementArchitectDamage", nameof(LabIncrementDamage));
+        // Patch the nontrivial platform implementation too, guarding native
+        // callers that may inline the small public forwarding method.
+        Patch(steam, "IncrementArchitectDamage", nameof(LabIncrementDamage));
+        Patch(stats, "GetPersonalArchitectDamage", nameof(LabPersonalDamage));
+        Patch(stats, "GetGlobalArchitectDamage", nameof(LabGlobalDamage));
+        Patch(stats, "RefreshGlobalStats", nameof(SkipLabPlatformCall));
+        Patch(steam, "RefreshGlobalStats", nameof(SkipLabPlatformTask));
+        var metrics = typeof(MegaCrit.Sts2.Core.Runs.Metrics.MetricUtilities);
+        Patch(metrics, "ShouldUploadMetrics", nameof(LabMetricsDisabled));
+        Patch(metrics, "PutRequest", nameof(SkipLabPlatformTask));
+        // Native run/score/history updates remain real in the mocked backend.
+        Patch(typeof(MegaCrit.Sts2.Core.Achievements.AchievementsHelper), "AfterRunEnded", nameof(SkipLabPlatformCall));
+        PlatformIsolationInstalled = true;
+    }
+    private static bool LabIncrementDamage(int __0) { LabArchitectDamage += __0; LabStatWrites++; return false; }
+    private static bool LabPersonalDamage(ref long __result) { __result = LabArchitectDamage; return false; }
+    private static bool LabGlobalDamage(ref long? __result) { __result = null; return false; }
+    private static bool SkipLabPlatformCall() => false;
+    private static bool SkipLabPlatformTask(ref Task __result) { __result = Task.CompletedTask; return false; }
+    private static bool LabMetricsDisabled(ref bool __result) { __result = false; return false; }
 
     private static void Write(string name, object value)
     {

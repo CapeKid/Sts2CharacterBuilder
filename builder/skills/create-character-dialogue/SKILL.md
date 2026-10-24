@@ -11,7 +11,7 @@ Run `validate`, `generate`, and `generate --check` using the pinned toolkit CLI.
 
 Use a fresh `prepare-lab`/`test-native` lab for selector/fallback controls and every authored conversation's visible text, advancement, reward access and checkpoint replay. Translated rows also require every locale/fallback and checkpoint case, with rendered labels, live language switches and preserved progress/sound calls. Review formatting, wrapping, voice and English fallback in the actual game. Record human/device/language/co-op gaps separately; passing the synthetic suite does not complete them.
 
-Architect endings require separate native ending/control records: rendered speech, native button advancement, preserved attack metadata, exact Proceed callback and map-checkpoint replay. The suite stops before Proceed; completed-campaign and post-win-screen review remain gaps.
+Architect endings require separate native ending/control records: rendered speech, native button advancement, preserved attack metadata, exact Proceed callback and map-checkpoint replay. Require an `ending-completion` record for each authored visit: actual closing attacks/WinRun, exactly-once isolated score/stat/history updates, completed-checkpoint removal, post-win result/character and native menu return. The test DLL isolates platform statistic/telemetry/achievement calls; normal packages exclude it. Forced-ending integration is not campaign reachability or human post-win layout review.
 
 The generator supports eight ordinary Ancients with partial per-locale overrides plus English Architect endings. Custom Ancients, translated endings, other victory/defeat text and voiced lines require project-owned extensions plus explicit native evidence. Keep unsupported requested content as a gap.
 

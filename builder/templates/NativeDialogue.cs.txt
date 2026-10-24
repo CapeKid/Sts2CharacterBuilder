@@ -70,6 +70,43 @@
             VisitIndex = null, IsRepeating = true };
     }
     private static bool ForceEndingRoom;
+    private static MegaCrit.Sts2.Core.Models.Events.TheArchitect? CompletingEnding;
+    private static int PlayerClosingCalls, ArchitectClosingCalls, CompletedPlayerClosing, CompletedArchitectClosing, NativeWinCalls, NativeEndCalls, GuardedEndCalls;
+    private static SerializableRun? CompletedEndingRun;
+    private static void ObservePlayerClosing(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, ArchitectAttackers __0, ref Task<bool> __result)
+    {
+        if (!ReferenceEquals(__instance, CompletingEnding)) return;
+        Require(__0 == EndingLines(__instance).EndAttackers, "Player closing attack settings differ.");
+        PlayerClosingCalls++;
+        __result = AwaitPlayerClosing(__result);
+    }
+    private static async Task<bool> AwaitPlayerClosing(Task<bool> native)
+    {
+        var played = await native;
+        Require(played, "Native player closing attack did not execute.");
+        CompletedPlayerClosing++;
+        return played;
+    }
+    private static void ObserveArchitectClosing(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, ArchitectAttackers __0, ref Task __result)
+    {
+        if (!ReferenceEquals(__instance, CompletingEnding)) return;
+        Require(__0 == EndingLines(__instance).EndAttackers, "Architect closing attack settings differ.");
+        ArchitectClosingCalls++;
+        __result = AwaitArchitectClosing(__result);
+    }
+    private static async Task AwaitArchitectClosing(Task native) { await native; CompletedArchitectClosing++; }
+    private static void ObserveNativeWin() { if (CompletingEnding != null) NativeWinCalls++; }
+    private static void ObserveNativeEnd(bool __0, SerializableRun __result)
+    {
+        if (CompletingEnding == null) return;
+        if (__0) { NativeEndCalls++; CompletedEndingRun = __result; }
+        else {
+            // GuaranteeKillAllPlayers reaches the ordinary death path after
+            // OnEnded(true). Native _runHistoryWasUploaded guards its writes.
+            Require(CompletedEndingRun != null, "Death callback preceded the winning end.");
+            GuardedEndCalls++;
+        }
+    }
     private static bool EndingRoomRoll(MegaCrit.Sts2.Core.Map.MapPointType __0, ref RoomType __result)
     {
         if (!ForceEndingRoom || __0 != MegaCrit.Sts2.Core.Map.MapPointType.Unknown) return true;
@@ -109,6 +146,14 @@
             postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveEnding)) { priority = Priority.First });
         observer.Patch(AccessTools.Method(typeof(RunManager), "RollRoomTypeFor"),
             prefix: new HarmonyMethod(typeof(NativeProbe), nameof(EndingRoomRoll)));
+        observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "AnimPlayerAttackIfNecessary"),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObservePlayerClosing)));
+        observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "AnimArchitectAttackIfNecessary"),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveArchitectClosing)));
+        observer.Patch(AccessTools.Method(typeof(RunManager), nameof(RunManager.WinRun)),
+            prefix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveNativeWin)));
+        observer.Patch(AccessTools.Method(typeof(RunManager), nameof(RunManager.OnEnded)),
+            postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveNativeEnd)));
         var progress = SaveManager.Instance.Progress;
         var ownStats = progress.GetOrCreateCharacterStats(ModelDb.Character<Character>().Id); var priorWins = ownStats.TotalWins;
         try {
@@ -140,7 +185,7 @@
             foreach (var row in rows) {
                 var visit = row.GetProperty("visit").GetString()!;
                 Progress("ending:" + visit);
-                await NGame.Instance!.ReturnToMainMenu();
+                if (NGame.Instance!.MainMenu == null) await NGame.Instance.ReturnToMainMenu();
                 ownStats.TotalWins = visit == "first" ? 0 : 100;
                 await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
                     ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-ENDING-" + visit, GameMode.Standard, 0);
@@ -175,9 +220,82 @@
                     AccessTools.Property(native.GetType(), "OnChosen").GetValue(native)), "Native WinRun callback changed.");
                 Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
                     nativeAdvance = true, nativeChoreography = true, proceedUnchanged = true, checkpointReplay = true });
+                await CompleteEnding(row, model);
             }
-            Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true, emptyNative = true, existingMetadata = true });
-        } finally { ownStats.TotalWins = priorWins; ForceEndingRoom = false; SeedEndingMode = 0; observer.UnpatchAll(observer.Id); }
+            Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true,
+                emptyNative = rows.Length > 0, existingMetadata = rows.Length > 0 });
+            if (rows.Length > 0) {
+                await NGame.Instance!.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
+                    ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-AFTER-ENDING", GameMode.Standard, 0);
+                Require(!Run.IsGameOver && Run.Players.Single().Creature.IsAlive, "New run after native win failed.");
+            }
+        } finally { ownStats.TotalWins = priorWins; CompletingEnding = null; ForceEndingRoom = false; SeedEndingMode = 0; observer.UnpatchAll(observer.Id); }
+    }
+    private static async Task CompleteEnding(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model)
+    {
+        Require(PlatformIsolationInstalled && Run.GameMode == GameMode.Standard && RunManager.Instance.DailyTime == null,
+            "Native win requires isolated platform calls and a nondaily fixture.");
+        var player = Run.Players.Single(); var progress = SaveManager.Instance.Progress;
+        var stats = progress.GetOrCreateCharacterStats(player.Character.Id);
+        var wins = stats.TotalWins; var losses = stats.TotalLosses; var damage = progress.ArchitectDamage;
+        var platform = LabArchitectDamage; var writes = LabStatWrites; var historyCount = SaveManager.Instance.GetRunHistoryCount();
+        var historyNames = SaveManager.Instance.GetAllRunHistoryNames().ToHashSet(StringComparer.Ordinal);
+        PlayerClosingCalls = ArchitectClosingCalls = CompletedPlayerClosing = CompletedArchitectClosing = NativeWinCalls = NativeEndCalls = GuardedEndCalls = 0;
+        CompletedEndingRun = null;
+        var playerVisuals = MegaCrit.Sts2.Core.Nodes.Rooms.NCombatRoom.Instance!.CreatureNodes.Single(n => n.Entity == player.Creature).Visuals;
+#if BUILDER_AUTHORED_SPRITES
+        var sprite = SpriteBody();
+#endif
+        CompletingEnding = model;
+        try {
+            Progress("ending-completion:" + row.GetProperty("visit").GetString());
+            var option = model.CurrentOptions.Single();
+            var button = DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Single(b => b.IsVisibleInTree() && b.IsEnabled && b.Option == option);
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(button);
+            await RunManager.Instance.EventSynchronizer.AwaitPendingOptionTasks();
+            await Wait(() => DialogueNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverScreen>()
+                .Any(n => n.IsVisibleInTree()), "Native post-win screen missing.");
+            var screen = DialogueNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverScreen>().Single(n => n.IsVisibleInTree());
+            Require(PlayerClosingCalls == 1 && ArchitectClosingCalls == 1 && CompletedPlayerClosing == 1 && CompletedArchitectClosing == 1,
+                "Native closing attacks failed or repeated.");
+            Require(NativeWinCalls == 1 && NativeEndCalls == 1 && GuardedEndCalls == 1 && CompletedEndingRun != null && Run.IsGameOver, "Native WinRun failed or repeated.");
+            var score = ScoreUtility.CalculateScore(CompletedEndingRun!, true);
+            Require(stats.TotalWins == wins + 1 && stats.TotalLosses == losses && progress.ArchitectDamage == damage + score,
+                "Native win statistics/score differ.");
+            Require(LabArchitectDamage == platform + score && LabStatWrites == writes + 1, "Isolated platform score differs or repeated.");
+            Require(!SaveManager.Instance.HasRunSave && SaveManager.Instance.GetRunHistoryCount() == historyCount + 1,
+                "Completed checkpoint/history not committed.");
+            var name = SaveManager.Instance.GetAllRunHistoryNames().Single(n => !historyNames.Contains(n));
+            var saved = SaveManager.Instance.LoadRunHistory(name);
+            Require(saved.Success && saved.SaveData != null && saved.SaveData.Win && !saved.SaveData.WasAbandoned
+                && saved.SaveData.Players.Single().Character == player.Character.Id, "Persisted win history differs.");
+            var history = (RunHistory)AccessTools.Field(screen.GetType(), "_history").GetValue(screen)!;
+            Require(history.Win && (int)AccessTools.Field(screen.GetType(), "_score").GetValue(screen)! == score, "Post-win screen score/result differs.");
+            var container = (Control)AccessTools.Field(screen.GetType(), "_creatureContainer").GetValue(screen)!;
+            Require(container.IsAncestorOf(playerVisuals) && playerVisuals.IsVisibleInTree(), "Post-win player presentation missing or replaced.");
+#if BUILDER_AUTHORED_SPRITES
+            await Wait(() => CharacterSprites.States.GetValueOrDefault(sprite.Animation.ToString()) == "death" && !sprite.IsPlaying(), "Post-win sprite death pose missing.");
+            Require(container.IsAncestorOf(sprite) && sprite.IsVisibleInTree() && sprite.Frame == sprite.SpriteFrames.GetFrameCount(sprite.Animation) - 1,
+                "Post-win authored sprite was replaced or did not hold its death frame.");
+#endif
+            // Native Continue opens the score/history summary before the menu
+            // button becomes available. Exercise both controls and animations.
+            var next = (MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverContinueButton)AccessTools.Field(screen.GetType(), "_continueButton").GetValue(screen)!;
+            await Wait(() => next.IsVisibleInTree() && next.IsEnabled, "Post-win Continue unavailable.");
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(next);
+            var menu = (MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NReturnToMainMenuButton)AccessTools.Field(screen.GetType(), "_mainMenuButton").GetValue(screen)!;
+            await Wait(() => menu.IsVisibleInTree() && menu.IsEnabled
+                && !(bool)AccessTools.Field(screen.GetType(), "_isAnimatingSummary").GetValue(screen)!, "Post-win menu button/summary unavailable.");
+            var summary = (Control)AccessTools.Field(screen.GetType(), "_summaryContainer").GetValue(screen)!;
+            Require(summary.IsVisibleInTree() && !(bool)AccessTools.Field(screen.GetType(), "_isAnimatingSummary").GetValue(screen)!,
+                "Post-win summary did not finish.");
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(menu);
+            await Wait(() => NGame.Instance!.MainMenu != null && (!GodotObject.IsInstanceValid(screen) || !screen.IsInsideTree()), "Native post-win return failed.");
+            Checks.Add(new { check = "ending-completion", ancient = "THE_ARCHITECT", visit = row.GetProperty("visit").GetString(),
+                closingAttacks = true, nativeWin = true, guardedDeathCallback = true, exactlyOnce = true, scoreAndStats = true, historyPersisted = true,
+                checkpointDeleted = true, postWinScreen = true, summaryVisible = true, characterVisible = true, returnToMenu = true, platformIsolated = true,
+                authoredSprite = Request.GetProperty("sprites").ValueKind != JsonValueKind.Null, score });
+        } finally { CompletingEnding = null; }
     }
     private static async Task<MegaCrit.Sts2.Core.Models.Events.TheArchitect> EndingReady(JsonElement row)
     {
