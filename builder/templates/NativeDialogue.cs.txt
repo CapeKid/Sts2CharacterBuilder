@@ -71,7 +71,7 @@
     }
     private static bool ForceEndingRoom;
     private static MegaCrit.Sts2.Core.Models.Events.TheArchitect? CompletingEnding;
-    private static int PlayerClosingCalls, ArchitectClosingCalls, CompletedPlayerClosing, CompletedArchitectClosing, NativeWinCalls, NativeEndCalls;
+    private static int PlayerClosingCalls, ArchitectClosingCalls, CompletedPlayerClosing, CompletedArchitectClosing, NativeWinCalls, NativeEndCalls, GuardedEndCalls;
     private static SerializableRun? CompletedEndingRun;
     private static void ObservePlayerClosing(MegaCrit.Sts2.Core.Models.Events.TheArchitect __instance, ArchitectAttackers __0, ref Task<bool> __result)
     {
@@ -99,8 +99,13 @@
     private static void ObserveNativeEnd(bool __0, SerializableRun __result)
     {
         if (CompletingEnding == null) return;
-        Require(__0, "Native ending was processed as a loss.");
-        NativeEndCalls++; CompletedEndingRun = __result;
+        if (__0) { NativeEndCalls++; CompletedEndingRun = __result; }
+        else {
+            // GuaranteeKillAllPlayers reaches the ordinary death path after
+            // OnEnded(true). Native _runHistoryWasUploaded guards its writes.
+            Require(CompletedEndingRun != null, "Death callback preceded the winning end.");
+            GuardedEndCalls++;
+        }
     }
     private static bool EndingRoomRoll(MegaCrit.Sts2.Core.Map.MapPointType __0, ref RoomType __result)
     {
@@ -235,7 +240,7 @@
         var wins = stats.TotalWins; var losses = stats.TotalLosses; var damage = progress.ArchitectDamage;
         var platform = LabArchitectDamage; var writes = LabStatWrites; var historyCount = SaveManager.Instance.GetRunHistoryCount();
         var historyNames = SaveManager.Instance.GetAllRunHistoryNames().ToHashSet(StringComparer.Ordinal);
-        PlayerClosingCalls = ArchitectClosingCalls = CompletedPlayerClosing = CompletedArchitectClosing = NativeWinCalls = NativeEndCalls = 0;
+        PlayerClosingCalls = ArchitectClosingCalls = CompletedPlayerClosing = CompletedArchitectClosing = NativeWinCalls = NativeEndCalls = GuardedEndCalls = 0;
         CompletedEndingRun = null;
 #if BUILDER_AUTHORED_SPRITES
         var sprite = SpriteBody();
@@ -252,7 +257,7 @@
             var screen = DialogueNodes(Tree.Root).OfType<MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverScreen>().Single(n => n.IsVisibleInTree());
             Require(PlayerClosingCalls == 1 && ArchitectClosingCalls == 1 && CompletedPlayerClosing == 1 && CompletedArchitectClosing == 1,
                 "Native closing attacks failed or repeated.");
-            Require(NativeWinCalls == 1 && NativeEndCalls == 1 && CompletedEndingRun != null && Run.IsGameOver, "Native WinRun failed or repeated.");
+            Require(NativeWinCalls == 1 && NativeEndCalls == 1 && GuardedEndCalls == 1 && CompletedEndingRun != null && Run.IsGameOver, "Native WinRun failed or repeated.");
             var score = ScoreUtility.CalculateScore(CompletedEndingRun!, true);
             Require(stats.TotalWins == wins + 1 && stats.TotalLosses == losses && progress.ArchitectDamage == damage + score,
                 "Native win statistics/score differ.");
@@ -272,14 +277,21 @@
             Require(container.IsAncestorOf(sprite) && sprite.IsVisibleInTree() && sprite.Frame == sprite.SpriteFrames.GetFrameCount(sprite.Animation) - 1,
                 "Post-win authored sprite was replaced or did not hold its death frame.");
 #endif
-            // Use the native return button, without replacing transition callbacks.
+            // Native Continue opens the score/history summary before the menu
+            // button becomes available. Exercise both controls and animations.
+            var next = (MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NGameOverContinueButton)AccessTools.Field(screen.GetType(), "_continueButton").GetValue(screen)!;
+            await Wait(() => next.IsVisibleInTree() && next.IsEnabled, "Post-win Continue unavailable.");
+            await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(next);
             var menu = (MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen.NReturnToMainMenuButton)AccessTools.Field(screen.GetType(), "_mainMenuButton").GetValue(screen)!;
             await Wait(() => menu.IsVisibleInTree() && menu.IsEnabled, "Post-win menu button unavailable.");
+            var summary = (Control)AccessTools.Field(screen.GetType(), "_summaryContainer").GetValue(screen)!;
+            Require(summary.IsVisibleInTree() && !(bool)AccessTools.Field(screen.GetType(), "_isAnimatingSummary").GetValue(screen)!,
+                "Post-win summary did not finish.");
             await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(menu);
             await Wait(() => NGame.Instance!.MainMenu != null && !screen.IsInsideTree(), "Native post-win return failed.");
             Checks.Add(new { check = "ending-completion", ancient = "THE_ARCHITECT", visit = row.GetProperty("visit").GetString(),
-                closingAttacks = true, nativeWin = true, exactlyOnce = true, scoreAndStats = true, historyPersisted = true,
-                checkpointDeleted = true, postWinScreen = true, characterVisible = true, returnToMenu = true, platformIsolated = true,
+                closingAttacks = true, nativeWin = true, guardedDeathCallback = true, exactlyOnce = true, scoreAndStats = true, historyPersisted = true,
+                checkpointDeleted = true, postWinScreen = true, summaryVisible = true, characterVisible = true, returnToMenu = true, platformIsolated = true,
                 authoredSprite = Request.GetProperty("sprites").ValueKind != JsonValueKind.Null, score });
         } finally { CompletingEnding = null; }
     }

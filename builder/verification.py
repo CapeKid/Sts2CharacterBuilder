@@ -194,8 +194,8 @@ def native_evidence(toolkit, root):
         raise BuilderError('Native evidence does not cover every ending dialogue/control case')
     completion = [c for c in receipt.get('checks', []) if c.get('check') == 'ending-completion']
     actual_completion = [(c.get('ancient'), c.get('visit')) for c in completion]
-    completion_fields = ('closingAttacks', 'nativeWin', 'exactlyOnce', 'scoreAndStats', 'historyPersisted',
-                         'checkpointDeleted', 'postWinScreen', 'characterVisible', 'returnToMenu', 'platformIsolated')
+    completion_fields = ('closingAttacks', 'nativeWin', 'guardedDeathCallback', 'exactlyOnce', 'scoreAndStats', 'historyPersisted',
+                         'checkpointDeleted', 'postWinScreen', 'summaryVisible', 'characterVisible', 'returnToMenu', 'platformIsolated')
     if (set(actual_completion) != expected_endings or len(actual_completion) != len(expected_endings)
             or any(c.get(f) is not True for c in completion for f in completion_fields)
             or any(type(c.get('score')) is not int or c['score'] < 0
