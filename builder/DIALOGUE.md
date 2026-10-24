@@ -37,8 +37,7 @@ Ancient getter and replaces only the selected project's character/Ancient/visit
 combination. Omitted visits, unconfigured Ancients, anonymous sets and other
 characters retain the native result, including native empty behavior. Rewards,
 Ancient cards, encounters and eligibility are not replaced. English text is
-merged into namespaced keys in the active localization table on selection and before locale-change listeners run. Configured translations replace individual fields; other fields receive authored English fallback. The character template also restores this assembly's inline model localization before native locale-change UI listeners run; character/card/item text survives switching languages and switching back. Voice/SFX, custom Ancients, victory/ending text and The Architect's separate ending
-dialogue require project-owned extensions and separate evidence.
+merged into namespaced keys in the active localization table on selection and before locale-change listeners run. Configured translations replace individual fields; other fields receive authored English fallback. The character template also restores this assembly's inline model localization before native locale-change UI listeners run; character/card/item text survives switching languages and switching back. Voice/SFX, custom Ancients and other victory/defeat text require project-owned extensions and separate evidence.
 
 A conversation can add `translations`, an array of `{ "language": "fra", "lines": [...] }` entries. Each lines array must have exactly the English line count and keeps the English speakers/order. A translated line can override `text`, `next`, both, or neither (`{}`). Missing text uses English text; missing labels use the English label or `Continue`. Blank strings, repeated locales, all-empty translations and final-line next labels are rejected. English remains in the base `lines`; do not add an `eng` translation. Bounds remain 1,000 characters per text and 80 per label.
 
@@ -60,3 +59,15 @@ Translated conversations additionally run every configured locale, English and o
 is not independently persisted. These synthetic solo fixtures do not establish
 campaign behavior, translated layout quality, physical controller usability or
 online co-op correctness. Keep those review gaps explicit.
+
+## Architect ending dialogue
+
+`THE_ARCHITECT` additionally accepts one `first` and one `repeat` conversation in the same file. These use the native character win count (zero versus positive), rather than ordinary Ancient visit counts. This reads existing native statistics; it adds no saved state or progression mechanics. See the original [ending example](examples/ending-dialogue/dialogue.json), including a one-line repeat control.
+
+The same 1–12 lines, speakers, optional nonfinal labels and final-label prohibition apply. Endings currently use English in every locale; `translations` on an Architect row is rejected. Translated endings require an extension and separate rendered-speech evidence. The last line leads to the native Proceed action rather than Ancient rewards. Omitted ending visits and other characters retain the exact native selected dialogue.
+
+After the game selects its ending, the generator replaces only this character's authored lines and preserves the selected conversation's start/end attackers, visit index and repeat metadata. The game still owns combat-room speech bubbles, animations, line advancement and the Proceed/WinRun callback. Custom attack choreography, ending art, defeat text and alternate endings are outside this contract.
+
+The native suite separately checks zero/one/100-win selection, foreign/omitted fallback by reference, exact native metadata, rendered speech and next labels, actual option-button advancement, a native pre-entry map checkpoint and replay from the first line after partial advancement, and exact equality with the native Proceed callback. A single-line ending also reaches Proceed. The fixture stops before invoking Proceed: it does not certify a completed campaign, score/stat updates or the post-win screen. The owned isolated test backend is the only statistics context changed by fixture setup. Missing, duplicate or failed ending/control evidence is rejected. Human layout, voice, physical controls, co-op and regular-branch checks remain separate.
+
+If native selection is empty for a new character, an authored ending uses no opening attacks and both native closing attacks, with first/repeat visit metadata. Existing native selections keep their exact metadata. Omitted rows preserve even an empty native result; a missing ending is not evidence of campaign completion.

@@ -239,6 +239,8 @@ def load_dialogue(toolkit, root, config=None):
     for row in rows:
         if 'next' in row['lines'][-1]:
             raise BuilderError('Final dialogue line cannot specify next; native reward options follow')
+        if row['ancient'] == 'THE_ARCHITECT' and 'translations' in row:
+            raise BuilderError('Architect ending translations require a project-owned extension')
         translations = row.get('translations', [])
         languages = [t['language'] for t in translations]
         if len(languages) != len(set(languages)):

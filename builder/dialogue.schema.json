@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "array",
-  "maxItems": 16,
+  "maxItems": 18,
   "items": {
     "type": "object",
     "additionalProperties": false,
@@ -21,7 +21,8 @@
           "PAEL",
           "NONUPEIPE",
           "TANX",
-          "VAKUU"
+          "VAKUU",
+          "THE_ARCHITECT"
         ]
       },
       "visit": {
