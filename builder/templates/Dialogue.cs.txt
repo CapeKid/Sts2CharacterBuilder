@@ -90,7 +90,40 @@ internal static class CharacterDialogue
             if (lines.Count > 0 && lines.All(Owned))
                 AccessTools.Method(typeof(NAncientEventLayout), "UpdateFakeNextButton").Invoke(layout, null);
         }
+        RefreshEnding(nodes);
         // Text/label refresh only: no replay, advance, SetDialogue or sound calls.
+    }
+    private static void RefreshEnding(Node[] nodes)
+    {
+        var state = AccessTools.Property(typeof(MegaCrit.Sts2.Core.Runs.RunManager), "State")
+            .GetValue(MegaCrit.Sts2.Core.Runs.RunManager.Instance) as MegaCrit.Sts2.Core.Runs.IRunState;
+        if (state?.CurrentRoom is not MegaCrit.Sts2.Core.Rooms.EventRoom room
+            || room.LocalMutableEvent is not TheArchitect ending || ending.Owner?.Character is not Character) return;
+        var dialogue = (AncientDialogue?)AccessTools.Property(typeof(TheArchitect), "Dialogue").GetValue(ending);
+        var index = (int)AccessTools.Property(typeof(TheArchitect), "CurrentLineIndex").GetValue(ending)!;
+        if (dialogue == null || index < 0 || index >= dialogue.Lines.Count || !dialogue.Lines.All(Owned)) return;
+        var text = dialogue.Lines[index].LineText!.GetFormattedText();
+        var bubble = (MegaCrit.Sts2.Core.Nodes.Vfx.NSpeechBubbleVfx?)AccessTools.Property(typeof(TheArchitect), "SpeechBubble").GetValue(ending);
+        if (GodotObject.IsInstanceValid(bubble) && bubble!.IsInsideTree()) {
+            AccessTools.Field(bubble.GetType(), "_text").SetValue(bubble, text);
+            if (AccessTools.Field(bubble.GetType(), "_label").GetValue(bubble) is MegaRichTextLabel label) {
+                // Retain native animation markup and the current reveal progress.
+                var start = label.Text.IndexOf("[fly_in ", StringComparison.Ordinal);
+                var end = start < 0 ? -1 : label.Text.IndexOf(']', start);
+                if (end >= 0 && label.Text.EndsWith("[/fly_in][/center]", StringComparison.Ordinal)) {
+                    var ratio = label.VisibleRatio;
+                    label.Text = label.Text[..(end + 1)] + text + "[/fly_in][/center]";
+                    label.VisibleRatio = ratio;
+                }
+            }
+        }
+        foreach (var button in nodes.OfType<NEventOptionButton>().Where(b => b.Event == ending && ending.CurrentOptions.Contains(b.Option))) {
+            var title = button.Option.Title.GetFormattedText(); var description = button.Option.Description.GetFormattedText();
+            var tone = button.Option.IsLocked ? "red" : "gold";
+            if (AccessTools.Field(typeof(NEventOptionButton), "_label").GetValue(button) is not MegaRichTextLabel label) continue;
+            label.Text = string.IsNullOrEmpty(title) ? description : $"[{tone}][b]{title}[/b][/{tone}]\n{description}";
+        }
+        // No SetEventState: current options, callbacks, speech lifetime and tween survive.
     }
     private static void Select(AncientDialogueSet __instance, ModelId characterId, int charVisits,
         ref IEnumerable<AncientDialogue> __result)

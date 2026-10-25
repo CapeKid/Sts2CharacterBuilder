@@ -170,7 +170,7 @@ def native_evidence(toolkit, root):
                             'noSoundReplay', 'nativeAdvance', 'rewardsAvailable', 'inlineLocalizationPreserved'),
         'dialogue-locale-resume': ('nativeCheckpoint', 'replayFromStart', 'renderedLabels', 'nativeAdvance', 'rewardsAvailable'),
     }
-    expected_locales = {(r['ancient'], r['visit'], language) for r in dialogue for language in dialogue_locales(toolkit, r)}
+    expected_locales = {(r['ancient'], r['visit'], language) for r in dialogue if r['ancient'] != 'THE_ARCHITECT' for language in dialogue_locales(toolkit, r)}
     for label, fields in locale_fields.items():
         checks = [c for c in receipt.get('checks', []) if c.get('check') == label]
         actual = [(c.get('ancient'), c.get('visit'), c.get('language')) for c in checks]
@@ -201,6 +201,22 @@ def native_evidence(toolkit, root):
             or any(type(c.get('score')) is not int or c['score'] < 0
                    or c.get('authoredSprite') is not bool(load_sprites(toolkit, root, config)) for c in completion)):
         raise BuilderError('Native evidence does not cover every ending completion case')
+    expected_ending_locales = {(r['ancient'], r['visit'], language) for r in dialogue if r['ancient'] == 'THE_ARCHITECT'
+                              for language in dialogue_locales(toolkit, r)}
+    ending_locale_fields = {
+        'ending-locale': ('visibleText', 'renderedLabels', 'nextLabels', 'speakersPreserved', 'liveSwitch', 'progressPreserved',
+                          'animationPreserved', 'noSoundReplay', 'nativeAdvance', 'proceedUnchanged', 'choreographyPreserved'),
+        'ending-locale-resume': ('nativeCheckpoint', 'replayFromStart', 'renderedLabels', 'nativeAdvance'),
+        'ending-locale-completion': completion_fields,
+    }
+    for label, fields in ending_locale_fields.items():
+        checks = [c for c in receipt.get('checks', []) if c.get('check') == label]
+        actual = [(c.get('ancient'), c.get('visit'), c.get('language')) for c in checks]
+        if (set(actual) != expected_ending_locales or len(actual) != len(expected_ending_locales)
+                or any(c.get(f) is not True for c in checks for f in fields)
+                or label == 'ending-locale-completion' and any(type(c.get('score')) is not int or c['score'] < 0
+                    or c.get('authoredSprite') is not bool(load_sprites(toolkit, root, config)) for c in checks)):
+            raise BuilderError(f'Native evidence does not cover every {label} case')
     sprites = load_sprites(toolkit, root, config)
     actual = [c.get('state') for c in receipt.get('checks', []) if c.get('check') == 'sprite-state']
     expected_states = set(sprites['states']) if sprites else set()
