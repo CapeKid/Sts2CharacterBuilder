@@ -109,6 +109,20 @@ def ending_dialogue():
     return read_json(REPO / 'builder/examples/ending-dialogue/dialogue.json')
 
 
+def mock_ending_cases(rows):
+    cases = [dict(check='ending-dialogue', ancient=r['ancient'], visit=r['visit'], visibleText=True,
+             speakersPreserved=True, nativeAdvance=True, nativeChoreography=True, proceedUnchanged=True, checkpointReplay=True) for r in rows]
+    cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True, emptyNative=True, existingMetadata=True)]
+    cases += [dict(check='ending-completion', ancient=r['ancient'], visit=r['visit'], closingAttacks=True, nativeWin=True, guardedDeathCallback=True,
+              exactlyOnce=True, scoreAndStats=True, historyPersisted=True, checkpointDeleted=True, postWinScreen=True, summaryVisible=True,
+              characterVisible=True, returnToMenu=True, platformIsolated=True, authoredSprite=False, score=10) for r in rows]
+    return cases
+
+
+def translated_endings():
+    return read_json(REPO / 'builder/examples/translated-endings/dialogue.json')
+
+
 def translated_dialogue():
     return read_json(REPO / 'builder/examples/translated-dialogue/dialogue.json')
 
@@ -1155,7 +1169,7 @@ class ToolkitTests(unittest.TestCase):
         self.assertNotEqual(before, input_hash(self.project))
         with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
         for mutate in (lambda r: r.append(copy.deepcopy(r[0])),
-                       lambda r: r[0].update(translations=[dict(language='fra', lines=[{}, {}, dict(text='Fin')])]),
+                       lambda r: r[0].update(translations=[dict(language='fra', lines=[{}, dict(text='Fin')])]),
                        lambda r: r[0]['lines'][-1].update(next='Finish'),
                        lambda r: r[1].update(end_attackers='None')):
             invalid = ending_dialogue(); mutate(invalid)
@@ -1163,12 +1177,7 @@ class ToolkitTests(unittest.TestCase):
             with self.assertRaises(BuilderError): load_dialogue(self.toolkit, self.project)
         atomic(self.project / 'design/dialogue.json', encoded(rows)); generate(self.toolkit, self.project)
         receipt = self.mock_pool_evidence()
-        cases = [dict(check='ending-dialogue', ancient=r['ancient'], visit=r['visit'], visibleText=True,
-                 speakersPreserved=True, nativeAdvance=True, nativeChoreography=True, proceedUnchanged=True, checkpointReplay=True) for r in rows]
-        cases += [dict(check='ending-controls', foreignUnchanged=True, omittedUnchanged=True, lateRepeat=True, nativeMetadata=True, emptyNative=True, existingMetadata=True)]
-        cases += [dict(check='ending-completion', ancient=r['ancient'], visit=r['visit'], closingAttacks=True, nativeWin=True, guardedDeathCallback=True,
-                  exactlyOnce=True, scoreAndStats=True, historyPersisted=True, checkpointDeleted=True, postWinScreen=True, summaryVisible=True,
-                  characterVisible=True, returnToMenu=True, platformIsolated=True, authoredSprite=False, score=10) for r in rows]
+        cases = mock_ending_cases(rows)
         base = list(receipt['checks'])
         def publish(extra):
             receipt['checks'] = base + extra
@@ -1195,6 +1204,53 @@ class ToolkitTests(unittest.TestCase):
         for invalid in invalid_completion:
             publish(invalid)
             with self.assertRaisesRegex(BuilderError, 'ending completion'): native_evidence(self.toolkit, self.project)
+
+    def test_translated_endings_contract_and_fingerprint(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        rows = translated_endings()
+        atomic(self.project / 'design/dialogue.json', encoded(rows))
+        self.assertEqual(load_dialogue(self.toolkit, self.project), rows)
+        self.assertEqual(dialogue_locales(self.toolkit, rows[0]), ['deu', 'eng', 'fra', 'jpn'])
+        self.assertEqual(dialogue_locales(self.toolkit, rows[1]), [])
+        generate(self.toolkit, self.project); before = input_hash(self.project)
+        self.edit('design/dialogue.json', lambda r: r[0]['translations'][0]['lines'][0].update(text='Autre réponse.'))
+        self.assertNotEqual(before, input_hash(self.project))
+        with self.assertRaisesRegex(BuilderError, 'Stale generated'): generate(self.toolkit, self.project, check=True)
+        for mutate in (lambda r: r[0]['translations'][0]['lines'].pop(),
+                       lambda r: r[0]['translations'][0]['lines'][-1].update(next='Fin'),
+                       lambda r: r[0]['translations'][0]['lines'][0].update(speaker='Character')):
+            invalid = translated_endings(); mutate(invalid)
+            atomic(self.project / 'design/dialogue.json', encoded(invalid))
+            with self.assertRaises(BuilderError): load_dialogue(self.toolkit, self.project)
+
+    def test_translated_endings_require_locale_resume_completion_and_preservation(self):
+        self.edit('character.json', lambda c: c['features'].update(dialogue=True))
+        rows = translated_endings(); atomic(self.project / 'design/dialogue.json', encoded(rows)); generate(self.toolkit, self.project)
+        receipt = self.mock_pool_evidence(); base = list(receipt['checks']) + mock_ending_cases(rows)
+        cases = []
+        for language in dialogue_locales(self.toolkit, rows[0]):
+            identity = dict(ancient='THE_ARCHITECT', visit='first', language=language)
+            cases += [dict(check='ending-locale', **identity, visibleText=True, renderedLabels=True, nextLabels=True,
+                speakersPreserved=True, liveSwitch=True, progressPreserved=True, animationPreserved=True, noSoundReplay=True,
+                nativeAdvance=True, proceedUnchanged=True, choreographyPreserved=True),
+                dict(check='ending-locale-resume', **identity, nativeCheckpoint=True, replayFromStart=True, renderedLabels=True, nativeAdvance=True),
+                dict(next(c for c in base if c.get('check')=='ending-completion' and c['visit']=='first'), check='ending-locale-completion', language=language)]
+        def publish(extra):
+            receipt['checks'] = base + extra; data = encoded(receipt); path = f'private/ending-locale-{digest(data)}.json'
+            atomic(self.project / path, data)
+            atomic(self.project / '.builder/native-evidence.json', encoded(dict(path=path, sha256=digest(data))))
+        publish(cases); self.assertIsNotNone(native_evidence(self.toolkit, self.project))
+        invalid = [[c for c in cases if c['language']!='deu'], cases+[cases[0]]]
+        for label in ('ending-locale', 'ending-locale-resume', 'ending-locale-completion'):
+            invalid.append([c for c in cases if c['check']!=label])
+        for field in ('liveSwitch', 'progressPreserved', 'animationPreserved', 'noSoundReplay', 'proceedUnchanged'):
+            invalid.append([dict(c, **{field: False}) if c['check']=='ending-locale' else c for c in cases])
+        invalid += [[dict(c, score=True) if c['check']=='ending-locale-completion' else c for c in cases],
+                    [dict(c, nativeWin=False) if c['check']=='ending-locale-completion' else c for c in cases],
+                    [dict(c, replayFromStart=False) if c['check']=='ending-locale-resume' else c for c in cases]]
+        for checks in invalid:
+            publish(checks)
+            with self.assertRaisesRegex(BuilderError, 'ending-locale'): native_evidence(self.toolkit, self.project)
 
     def test_dialogue_contract_and_optional_generation(self):
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
@@ -1601,7 +1657,7 @@ class ToolkitTests(unittest.TestCase):
         self.edit('character.json', lambda c: c['features'].update(events=True))
         atomic(self.project / 'design/events.json', encoded(authored_events() + branching_events() + conditional_events()))
         self.edit('character.json', lambda c: c['features'].update(dialogue=True))
-        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue() + ending_dialogue()))
+        atomic(self.project / 'design/dialogue.json', encoded(authored_dialogue()[2:] + translated_dialogue() + translated_endings()))
         generate(self.toolkit, self.project)
         try:
             receipt = build(self.toolkit, self.project, os.environ['BUILDER_TEST_GAME_DATA'])

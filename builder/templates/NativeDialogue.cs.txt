@@ -154,6 +154,12 @@
             prefix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveNativeWin)));
         observer.Patch(AccessTools.Method(typeof(RunManager), nameof(RunManager.OnEnded)),
             postfix: new HarmonyMethod(typeof(NativeProbe), nameof(ObserveNativeEnd)));
+        var loc = MegaCrit.Sts2.Core.Localization.LocManager.Instance; var initialLanguage = loc.Language;
+        observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.Events.TheArchitect), "ShowSpeechBubble"),
+            prefix: new HarmonyMethod(typeof(NativeProbe), nameof(CountEndingSpeech)));
+        foreach (var types in new[] { new[] { typeof(string), typeof(float) }, new[] { typeof(string), typeof(Dictionary<string, float>), typeof(float) } })
+            observer.Patch(AccessTools.Method(typeof(MegaCrit.Sts2.Core.Nodes.Audio.NAudioManager), "PlayOneShot", types),
+                prefix: new HarmonyMethod(typeof(NativeProbe), nameof(CountEndingSound)));
         var progress = SaveManager.Instance.Progress;
         var ownStats = progress.GetOrCreateCharacterStats(ModelDb.Character<Character>().Id); var priorWins = ownStats.TotalWins;
         try {
@@ -182,9 +188,10 @@
                 finally { SeedEndingMode = 0; }
                 CheckEndingSelection(model, true);
             }
-            foreach (var row in rows) {
+            foreach (var row in rows) foreach (var locale in DialogueLocales(row)) {
+                loc.SetLanguage(locale); CheckInlineLocalization();
                 var visit = row.GetProperty("visit").GetString()!;
-                Progress("ending:" + visit);
+                Progress("ending:" + visit + "/" + locale);
                 if (NGame.Instance!.MainMenu == null) await NGame.Instance.ReturnToMainMenu();
                 ownStats.TotalWins = visit == "first" ? 0 : 100;
                 await NGame.Instance.StartNewSingleplayerRun(ModelDb.Character<Character>(), true,
@@ -197,19 +204,19 @@
                 ForceEndingRoom = true;
                 try { await RunManager.Instance.EnterMapCoord(point.coord); }
                 finally { ForceEndingRoom = false; }
-                var model = await EndingReady(row);
+                var model = await EndingReady(row, locale);
                 // Reload from a real pre-entry map checkpoint after partial advancement.
-                if (row.GetProperty("lines").GetArrayLength() > 1) await AdvanceEnding(model, 1);
+                if (row.GetProperty("lines").GetArrayLength() > 1) { await AdvanceEnding(model, 1); CheckEndingText(row, model, locale); CheckLiveEndingLocale(row, model, locale); }
                 await NGame.Instance.ReturnToMainMenu();
                 var saved = SaveManager.Instance.LoadRunSave();
                 Require(saved.Success && saved.SaveData != null, "Ending checkpoint missing.");
                 var restored = RunState.FromSerializable(saved.SaveData!);
                 await RunManager.Instance.SetUpSavedSingleplayer(restored, saved.SaveData!);
                 await NGame.Instance.LoadRun(restored, saved.SaveData!.PreFinishedRoom);
-                model = await EndingReady(row);
+                model = await EndingReady(row, locale);
                 Require(EndingIndex(model) == 0, "Ending checkpoint did not replay from start.");
                 for (int i = 1; i < row.GetProperty("lines").GetArrayLength(); i++) {
-                    await AdvanceEnding(model, i); CheckEndingText(row, model);
+                    await AdvanceEnding(model, i); CheckEndingText(row, model, locale); CheckLiveEndingLocale(row, model, locale);
                 }
                 var option = model.CurrentOptions.Single();
                 var native = (MegaCrit.Sts2.Core.Events.EventOption)AccessTools.Method(model.GetType(), "CreateProceedOption").Invoke(model, null)!;
@@ -218,9 +225,16 @@
                     "Native Proceed option metadata changed.");
                 Require(object.Equals(AccessTools.Property(option.GetType(), "OnChosen").GetValue(option),
                     AccessTools.Property(native.GetType(), "OnChosen").GetValue(native)), "Native WinRun callback changed.");
-                Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
+                if (locale == "eng") Checks.Add(new { check = "ending-dialogue", ancient = "THE_ARCHITECT", visit, visibleText = true, speakersPreserved = true,
                     nativeAdvance = true, nativeChoreography = true, proceedUnchanged = true, checkpointReplay = true });
-                await CompleteEnding(row, model);
+                if (row.TryGetProperty("translations", out _)) {
+                    Checks.Add(new { check = "ending-locale", ancient = "THE_ARCHITECT", visit, language = locale, visibleText = true,
+                        renderedLabels = true, nextLabels = true, speakersPreserved = true, liveSwitch = true, progressPreserved = true,
+                        animationPreserved = true, noSoundReplay = true, nativeAdvance = true, proceedUnchanged = true, choreographyPreserved = true });
+                    Checks.Add(new { check = "ending-locale-resume", ancient = "THE_ARCHITECT", visit, language = locale,
+                        nativeCheckpoint = true, replayFromStart = true, renderedLabels = true, nativeAdvance = true });
+                }
+                await CompleteEnding(row, model, locale);
             }
             Checks.Add(new { check = "ending-controls", foreignUnchanged = true, omittedUnchanged = true, lateRepeat = true, nativeMetadata = true,
                 emptyNative = rows.Length > 0, existingMetadata = rows.Length > 0 });
@@ -229,9 +243,9 @@
                     ModelDb.ActsByIndex.Select(a => a.First()).ToArray(), [], "BUILDER-AFTER-ENDING", GameMode.Standard, 0);
                 Require(!Run.IsGameOver && Run.Players.Single().Creature.IsAlive, "New run after native win failed.");
             }
-        } finally { ownStats.TotalWins = priorWins; CompletingEnding = null; ForceEndingRoom = false; SeedEndingMode = 0; observer.UnpatchAll(observer.Id); }
+        } finally { loc.SetLanguage(initialLanguage); ownStats.TotalWins = priorWins; CompletingEnding = null; ForceEndingRoom = false; SeedEndingMode = 0; observer.UnpatchAll(observer.Id); }
     }
-    private static async Task CompleteEnding(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model)
+    private static async Task CompleteEnding(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model, string language)
     {
         Require(PlatformIsolationInstalled && Run.GameMode == GameMode.Standard && RunManager.Instance.DailyTime == null,
             "Native win requires isolated platform calls and a nondaily fixture.");
@@ -291,34 +305,75 @@
                 "Post-win summary did not finish.");
             await MegaCrit.Sts2.Core.AutoSlay.Helpers.UiHelper.Click(menu);
             await Wait(() => NGame.Instance!.MainMenu != null && (!GodotObject.IsInstanceValid(screen) || !screen.IsInsideTree()), "Native post-win return failed.");
-            Checks.Add(new { check = "ending-completion", ancient = "THE_ARCHITECT", visit = row.GetProperty("visit").GetString(),
+            void RecordCompletion(string label) => Checks.Add(new { check = label, ancient = "THE_ARCHITECT", visit = row.GetProperty("visit").GetString(), language,
                 closingAttacks = true, nativeWin = true, guardedDeathCallback = true, exactlyOnce = true, scoreAndStats = true, historyPersisted = true,
                 checkpointDeleted = true, postWinScreen = true, summaryVisible = true, characterVisible = true, returnToMenu = true, platformIsolated = true,
                 authoredSprite = Request.GetProperty("sprites").ValueKind != JsonValueKind.Null, score });
+            if (language == "eng") RecordCompletion("ending-completion");
+            if (row.TryGetProperty("translations", out _)) RecordCompletion("ending-locale-completion");
         } finally { CompletingEnding = null; }
     }
-    private static async Task<MegaCrit.Sts2.Core.Models.Events.TheArchitect> EndingReady(JsonElement row)
+    private static async Task<MegaCrit.Sts2.Core.Models.Events.TheArchitect> EndingReady(JsonElement row, string language)
     {
         await Wait(() => Run.CurrentRoom is EventRoom r && r.LocalMutableEvent is MegaCrit.Sts2.Core.Models.Events.TheArchitect m
             && m.CurrentOptions.Count == 1 && DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Any(b => b.IsVisibleInTree() && b.IsEnabled && b.Option == m.CurrentOptions[0]), "Ending button missing.");
         var model = (MegaCrit.Sts2.Core.Models.Events.TheArchitect)((EventRoom)Run.CurrentRoom!).LocalMutableEvent;
-        CheckEndingSelection(model, true); CheckEndingText(row, model);
+        CheckEndingSelection(model, true); CheckEndingText(row, model, language); CheckLiveEndingLocale(row, model, language);
         return model;
     }
-    private static void CheckEndingText(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model)
+    private static int EndingSpeechCalls, EndingSoundCalls;
+    private static void CountEndingSpeech() => EndingSpeechCalls++;
+    private static void CountEndingSound() => EndingSoundCalls++;
+    private static void CheckLiveEndingLocale(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model, string language)
     {
-        CheckDialogueModel(row, EndingLines(model).Lines, "eng");
+        if (!row.TryGetProperty("translations", out _)) return;
+        var loc = MegaCrit.Sts2.Core.Localization.LocManager.Instance;
+        var other = DialogueLocales(row).First(l => l != language);
+        var dialogue = EndingLines(model); var index = EndingIndex(model); var options = model.CurrentOptions.ToArray();
+        var bubble = (MegaCrit.Sts2.Core.Nodes.Vfx.NSpeechBubbleVfx)AccessTools.Property(model.GetType(), "SpeechBubble").GetValue(model)!;
+        var label = (MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel)AccessTools.Field(bubble.GetType(), "_label").GetValue(bubble)!;
+        // Counterfactual mid-reveal setup checks a fractional ratio even if a
+        // short authored line has already finished its natural fly-in.
+        var priorRatio = label.VisibleRatio; label.VisibleRatio = 0.375f;
+        var tween = AccessTools.Field(bubble.GetType(), "_tween").GetValue(bubble);
+        var elapsed = AccessTools.Field(bubble.GetType(), "_elapsedTime").GetValue(bubble);
+        var duration = bubble.SecondsToDisplay; var speech = EndingSpeechCalls; var sound = EndingSoundCalls;
+        void Preserved()
+        {
+            Require(ReferenceEquals(EndingLines(model), dialogue) && EndingIndex(model) == index && model.CurrentOptions.SequenceEqual(options),
+                "Ending locale switch changed dialogue/progress/options.");
+            Require(ReferenceEquals(AccessTools.Property(model.GetType(), "SpeechBubble").GetValue(model), bubble)
+                && ReferenceEquals(AccessTools.Field(bubble.GetType(), "_tween").GetValue(bubble), tween)
+                && object.Equals(AccessTools.Field(bubble.GetType(), "_elapsedTime").GetValue(bubble), elapsed)
+                && bubble.SecondsToDisplay == duration && Math.Abs(label.VisibleRatio - 0.375f) < 0.0001f,
+                "Ending locale switch restarted reveal/tween/lifetime.");
+            Require(EndingSpeechCalls == speech && EndingSoundCalls == sound, "Ending locale switch replayed speech or sound.");
+            CheckEndingSelection(model, true); CheckInlineLocalization();
+        }
+        try { loc.SetLanguage(other); CheckEndingText(row, model, other); Preserved(); }
+        finally { loc.SetLanguage(language); }
+        CheckEndingText(row, model, language); Preserved(); label.VisibleRatio = priorRatio;
+    }
+    private static void CheckEndingText(JsonElement row, MegaCrit.Sts2.Core.Models.Events.TheArchitect model, string language)
+    {
+        CheckDialogueModel(row, EndingLines(model).Lines, language);
         var i = EndingIndex(model);
         var bubble = (MegaCrit.Sts2.Core.Nodes.Vfx.NSpeechBubbleVfx)AccessTools.Property(model.GetType(), "SpeechBubble").GetValue(model)!;
         Require(bubble != null && bubble.IsInsideTree(), "Ending speech bubble missing.");
         var label = (MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel)AccessTools.Field(bubble.GetType(), "_label").GetValue(bubble)!;
         // Native speech adds center/fly-in markup around the authored formatted text.
-        var expected = row.GetProperty("lines")[i].GetProperty("text").GetString();
+        var expected = DialogueText(row, language, i, "text");
         Require(label.Text.StartsWith("[center][fly_in offset_x=", StringComparison.Ordinal)
             && label.Text.EndsWith(" offset_y=40]" + expected + "[/fly_in][/center]", StringComparison.Ordinal),
             "Rendered ending speech differs: " + label.Text);
+        Require((string)AccessTools.Field(bubble.GetType(), "_text").GetValue(bubble)! == expected, "Ending bubble's stored text differs.");
+        var option = model.CurrentOptions.Single();
+        var button = DialogueNodes(Tree.Root).OfType<NEventOptionButton>().Single(b => b.IsVisibleInTree() && b.Option == option);
+        var optionLabel = (MegaCrit.Sts2.addons.mega_text.MegaRichTextLabel)AccessTools.Field(typeof(NEventOptionButton), "_label").GetValue(button)!;
+        Require(optionLabel.Text == "[gold][b]" + option.Title.GetFormattedText() + "[/b][/gold]\n" + option.Description.GetFormattedText(),
+            "Rendered ending option label differs.");
         if (i < row.GetProperty("lines").GetArrayLength() - 1)
-            Require(model.CurrentOptions.Single().Title.GetFormattedText() == DialogueText(row, "eng", i, "next"), "Ending next label differs.");
+            Require(model.CurrentOptions.Single().Title.GetFormattedText() == DialogueText(row, language, i, "next"), "Ending next label differs.");
     }
     private static async Task AdvanceEnding(MegaCrit.Sts2.Core.Models.Events.TheArchitect model, int index)
     {
